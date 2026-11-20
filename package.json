@@ -1,6 +1,6 @@
 {
   "name": "pin-notes",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "プレビュー画面にピンと範囲でメモを残すツール",
   "private": true,
   "license": "MIT",

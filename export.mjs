@@ -51,11 +51,10 @@ const importanceOf = (v) => {
   return Number.isFinite(n) ? Math.min(MAX_IMPORTANCE, Math.max(0, Math.trunc(n))) : 0;
 };
 
-// 文言と並び順は作業の流れに合わせる。キーは保存データとの互換のため、文言を変える前のまま使う
+// メモは未完了か完了のどちらか。status が done なら完了、それ以外は未完了。v0.3.0 までの decided も未完了になる
 const STATUS = [
-  ['open', '未着手'],
-  ['decided', '確認待ち'],
-  ['done', '完了'],
+  ['未完了', (n) => n.status !== 'done'],
+  ['完了', (n) => n.status === 'done'],
 ];
 const ANONYMOUS = 'ななしさん';
 const site = new URL(endpoint).origin;
@@ -89,8 +88,8 @@ for (const [page, list] of [...byPage].sort(([a], [b]) => a.localeCompare(b))) {
   const title = oneLine(list.find((n) => n.title)?.title ?? '');
   lines.push(`## ${oneLine(page)}`, '');
   if (title) lines.push(`${title}｜${site}${oneLine(page)}`, '');
-  for (const [key, label] of STATUS) {
-    const items = list.filter((n) => n.status === key);
+  for (const [label, match] of STATUS) {
+    const items = list.filter(match);
     if (!items.length) continue;
     lines.push(`### ${label}`, '');
     for (const n of items) {

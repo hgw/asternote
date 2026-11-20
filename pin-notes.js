@@ -21,7 +21,7 @@
  * MIT License. https://github.com/hgw/pin-notes
  *
  * アイコンは Lucide v1.76.0 の SVG を使っている。https://lucide.dev
- * plus、x、arrow-left、clock、trash-2、check は Feather 由来で MIT License、ほかは ISC License。
+ * plus、x、arrow-left、trash-2、check は Feather 由来で MIT License、ほかは ISC License。
  *
  * ISC License
  * Copyright (c) 2026 Lucide Icons and Contributors
@@ -65,12 +65,11 @@
     defaultOn: !!(script && script.dataset.default === 'on'),
   };
 
-  // 状態は作業の流れで並べる。指摘が出て未着手、作る人が直して確認待ち、指摘した人が確かめて完了
-  // キーは保存データとの互換のため、文言を変える前の open、decided、done のまま使う
-  // 色は CSS の [data-status] で付ける。色だけに頼らないよう、未着手以外はピンにアイコンも出す
+  // メモは未完了か完了のどちらか。保存データの status が done なら完了、それ以外は未完了として扱う
+  // v0.3.0 までの decided（確認待ち）も、ここで未完了になる
+  // 色は CSS の [data-status] で付ける。色だけに頼らないよう、完了のピンにはアイコンも出す
   var STATUS = [
-    { key: 'open', label: '未着手', icon: null },
-    { key: 'decided', label: '確認待ち', icon: 'clock' },
+    { key: 'open', label: '未完了', icon: null },
     { key: 'done', label: '完了', icon: 'check' },
   ];
   // 名前を書かなかったメモの表示名。保存データには空のまま残す
@@ -93,7 +92,6 @@
     'pencil': '<path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/>',
     'trash-2': '<path d="M10 11v6"/><path d="M14 11v6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
     'check': '<path d="M20 6 9 17l-5-5"/>',
-    'clock': '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
     'sticky-note': '<path d="M21 9a2.4 2.4 0 0 0-.706-1.706l-3.588-3.588A2.4 2.4 0 0 0 15 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2z"/><path d="M15 3v5a1 1 0 0 0 1 1h5"/>',
     'lightbulb': '<path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/>',
     'wrench': '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.106-3.105c.32-.322.863-.22.983.218a6 6 0 0 1-8.259 7.057l-7.91 7.91a1 1 0 0 1-2.999-3l7.91-7.91a6 6 0 0 1 7.057-8.259c.438.12.54.662.219.984z"/>',
@@ -372,7 +370,7 @@
     var vars = [
       ['fg', '#09090b'], ['muted', '#52525b'], ['bg', '#fff'], ['subtle', '#f4f4f5'], ['subtle-hover', '#e4e4e7'],
       ['border', '#e4e4e7'], ['input', '#71717a'], ['primary', '#047857'], ['primary-fg', '#fff'], ['ring', '#047857'],
-      ['danger', '#b91c1c'], ['open', '#c2410c'], ['decided', '#1d4ed8'], ['done', '#52525b'], ['star', '#b45309'], ['radius', '8px'],
+      ['danger', '#b91c1c'], ['open', '#c2410c'], ['done', '#52525b'], ['star', '#b45309'], ['radius', '8px'],
     ].map(function (v) { return '--pn-' + v[0] + ':var(--pin-notes-' + v[0] + ',' + v[1] + ')'; }).join(';');
     var css = [
       '[data-pin-notes]{' + vars + ';font:13px/1.5 system-ui,sans-serif;letter-spacing:0;text-transform:none;color:var(--pn-fg);box-sizing:border-box}',
@@ -852,11 +850,6 @@
     var body = h('textarea', { placeholder: '決まったこと、直したいこと', 'aria-label': '本文' });
     body.value = note ? note.body : '';
     var author = h('input', { type: 'text', placeholder: ANONYMOUS, 'aria-label': '名前', autocomplete: 'name', value: (note && note.author) || ls.get('pin-notes:author') || '' });
-    var status = h('select', { 'aria-label': '状態' }, STATUS.map(function (s) {
-      var o = h('option', { value: s.key, text: s.label });
-      if ((note ? note.status : 'open') === s.key) o.selected = true;
-      return o;
-    }));
     // 種類と重要度は、押して選ぶボタンの並び。選んでいるものは aria-pressed で示す
     var segment = function (label, options, current) {
       var group = h('div', { class: 'pn-seg', role: 'group', 'aria-label': label });
@@ -889,7 +882,8 @@
         save.textContent = '保存中…';
         error.textContent = '';
         ls.set('pin-notes:author', author.value.trim());
-        var fields = { body: text, author: author.value.trim(), status: status.value, kind: kind.value, importance: importance.value };
+        // 完了かどうかは閲覧の吹き出しで切り替える。新しいメモは api.php が未完了で作る
+        var fields = { body: text, author: author.value.trim(), kind: kind.value, importance: importance.value };
         var p = note
           ? store.update(note.id, fields)
           : store.create(Object.assign({ page: pagePath(), title: document.title }, anchor, fields));
@@ -918,7 +912,6 @@
 
     var initialBody = body.value;
     var initialAuthor = author.value;
-    var initialStatus = status.value;
     var initialKind = kind.value;
     var initialImportance = importance.value;
     showPopover([
@@ -927,8 +920,6 @@
       body,
       h('div', { class: 'pn-label', text: '重要度' }),
       importance,
-      h('div', { class: 'pn-label', text: '状態' }),
-      status,
       // 名前はメモの中身ではないので、罫線で分けて保存の直前に置く
       h('div', { class: 'pn-sep' }, [h('div', { class: 'pn-label', text: '名前' }), author]),
       error,
@@ -936,7 +927,7 @@
     ], note ? 'メモを編集' : '新しいメモ', returnTo);
     // 書きかけの内容があるかどうか。本文、名前、状態、種類、重要度のどれかが開いたときから変わっていれば書きかけとする
     popover.isDirty = function () {
-      return body.value !== initialBody || author.value !== initialAuthor || status.value !== initialStatus ||
+      return body.value !== initialBody || author.value !== initialAuthor ||
         kind.value !== initialKind || importance.value !== initialImportance;
     };
     popover.warn = function () {
@@ -956,15 +947,15 @@
     if (!requestClosePopover()) return;
     state.openId = note.id;
     var s = statusOf(note.status);
-    var statusSel = h('select', { 'aria-label': '状態' }, STATUS.map(function (x) {
-      var o = h('option', { value: x.key, text: x.label });
-      if (x.key === note.status) o.selected = true;
-      return o;
-    }));
-    statusSel.addEventListener('change', function () {
-      statusSel.disabled = true;
-      store.update(note.id, { status: statusSel.value }).then(refresh).then(closePopover).catch(saveFailed);
-    });
+    var done = s.key === 'done';
+    var toggleDone = h('button', {
+      type: 'button', class: 'pn-btn' + (done ? '' : ' pn-btn--primary'),
+      onclick: function () {
+        if (toggleDone.disabled) return;
+        toggleDone.disabled = true;
+        store.update(note.id, { status: done ? 'open' : 'done' }).then(refresh).then(closePopover).catch(saveFailed);
+      },
+    }, done ? [h('span', { text: '未完了に戻す' })] : label('check', '完了にする'));
     var edit = h('button', { type: 'button', class: 'pn-btn', onclick: function () { openEditor(note); } }, label('pencil', '編集'));
     var del = h('button', {
       type: 'button', class: 'pn-btn pn-btn--danger',
@@ -988,7 +979,7 @@
       ]),
       h('p', { class: 'pn-body', text: note.body }),
       h('div', { class: 'pn-meta', text: (note.author || ANONYMOUS) + '｜' + formatDate(note.updatedAt || note.createdAt) }),
-      h('div', { class: 'pn-row' }, [statusSel]),
+      h('div', { class: 'pn-row' }, [toggleDone]),
       h('div', { class: 'pn-row' }, [edit, del, close]),
     ], num > 0 ? 'メモ ' + num : 'メモ', returnTo || note.id);
     popover.target = note;
@@ -998,7 +989,7 @@
     popover.focus({ preventScroll: true });
   }
 
-  // 状態のラベル。色に加えて、未着手以外はアイコンも付ける
+  // 完了かどうかのラベル。色に加えて、完了にはアイコンも付ける
   function statusTag(s, prefix) {
     var tag = h('span', { class: 'pn-tag', 'data-status': s.key });
     if (s.icon) tag.appendChild(iconEl(s.icon));
