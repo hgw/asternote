@@ -17,9 +17,15 @@ const args = Object.fromEntries(
     return acc;
   }, []),
 );
+const usage = '使い方: node export.mjs --endpoint <URL> --project <名前> [--out <ファイル>]';
+// --help は使い方を出して正常に終わる。pin-notes-copy とそろえる
+if (process.argv.includes('--help') || process.argv.includes('-h')) {
+  console.log(usage);
+  process.exit(0);
+}
 const { endpoint, project, out = 'notes.md' } = args;
 if (!endpoint || !project) {
-  console.error('使い方: node export.mjs --endpoint <URL> --project <名前> [--out <ファイル>]');
+  console.error(usage);
   process.exit(1);
 }
 
