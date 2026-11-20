@@ -24,7 +24,7 @@
 GitHub から npm で入れる。バージョンはタグで指定する。
 
 ```sh
-npm i github:hgw/pin-notes#v0.4.0
+npm i github:hgw/pin-notes#v0.4.1
 ```
 
 `pin-notes-copy` で、`pin-notes.js` と `api.php` を公開ディレクトリに複製する。
@@ -68,7 +68,7 @@ npm i github:hgw/pin-notes#v0.4.0
 3. ページに script タグを足す。WordPress なら、テーマの `footer.php` などに書く
 
    ```html
-   <script src="https://cdn.jsdelivr.net/gh/hgw/pin-notes@v0.4.0/pin-notes.js"
+   <script src="https://cdn.jsdelivr.net/gh/hgw/pin-notes@v0.4.1/pin-notes.js"
            data-endpoint="/pin-notes/api.php"
            data-project="myproject" defer></script>
    ```

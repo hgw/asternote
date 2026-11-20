@@ -423,7 +423,9 @@
       '.pn-pop:focus{outline:none}',
       '.pn-pop textarea,.pn-pop input[type="text"],.pn-pop select{display:block;width:100%;min-height:32px;margin:6px 0;padding:6px 8px;border:1px solid var(--pn-input);border-radius:calc(var(--pn-radius) - 2px);background:var(--pn-bg);color:var(--pn-fg);font:inherit}',
       '.pn-pop textarea{min-height:88px;resize:vertical}',
-      '.pn-title{margin:0 0 4px;font-weight:600;font-size:14px}',
+      '.pn-title{margin:0 0 4px;padding-right:32px;font-weight:600;font-size:14px}',
+      '.pn-x{position:absolute;top:8px;right:8px;display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;padding:0;border:0;border-radius:999px;background:none;color:var(--pn-muted);cursor:pointer}',
+      '.pn-x:hover{background:var(--pn-subtle);color:var(--pn-fg)}',
       '.pn-label{margin-top:10px;color:var(--pn-muted);font-size:12px;font-weight:500}',
       '.pn-sep{margin-top:12px;border-top:1px solid var(--pn-border)}',
       '.pn-seg{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0}',
@@ -826,8 +828,10 @@
   // 吹き出しを dialog として出す。開く前にフォーカスがあった場所を、閉じたときの戻り先にする
   function showPopover(children, title, returnTo) {
     var titleId = 'pn-title-' + (++popoverSeq);
+    // 閉じるボタンは、バーと同じく × のアイコンだけにして右上に置く。編集中は「キャンセル」と同じ動きになる
+    var close = h('button', { type: 'button', class: 'pn-x', 'aria-label': '閉じる', title: '閉じる', onclick: closePopover }, [iconEl('x')]);
     popover = h('div', { class: 'pn-pop', 'data-pin-notes': '', role: 'dialog', 'aria-labelledby': titleId, tabindex: '-1' },
-      [h('h2', { class: 'pn-title', id: titleId, text: title })].concat(children));
+      [h('h2', { class: 'pn-title', id: titleId, text: title }), close].concat(children));
     popover.returnTo = returnTo || (document.activeElement !== document.body ? document.activeElement : null);
     document.body.appendChild(popover);
   }
@@ -966,7 +970,6 @@
         store.remove(note.id).then(refresh).then(closePopover).catch(saveFailed);
       },
     }, label('trash-2', '削除'));
-    var close = h('button', { type: 'button', class: 'pn-btn', onclick: closePopover }, label('x', '閉じる'));
     var k = kindOf(note.kind);
     var kindLabel = h('span', { class: 'pn-kind' }, [iconEl(k.icon), document.createTextNode(k.label)]);
     var imp = importanceOf(note);
@@ -979,8 +982,7 @@
       ]),
       h('p', { class: 'pn-body', text: note.body }),
       h('div', { class: 'pn-meta', text: (note.author || ANONYMOUS) + '｜' + formatDate(note.updatedAt || note.createdAt) }),
-      h('div', { class: 'pn-row' }, [toggleDone]),
-      h('div', { class: 'pn-row' }, [edit, del, close]),
+      h('div', { class: 'pn-row' }, [toggleDone, edit, del]),
     ], num > 0 ? 'メモ ' + num : 'メモ', returnTo || note.id);
     popover.target = note;
     popover.targetEl = findAnchor(note);
@@ -1066,6 +1068,7 @@
     var p = function (n) { return String(n).padStart(2, '0'); };
     return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
   }
+
 
   function showError(prefix, err) {
     bar.hint.textContent = prefix + ': ' + (err && err.message ? err.message : err);
