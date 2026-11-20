@@ -535,7 +535,9 @@
       if (e.isComposing || e.keyCode === 229) return;
       // マウスで置き始めたあとに矢印キーを押したら、十字のカーソルを出してキーボードでも続けられるようにする
       // 置き方のボタンを押してフォーカスがカーソルから外れていても、矢印キーと Enter はカーソルに渡す
-      if (state.placing && /^Arrow/.test(e.key) && !/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) {
+      // Alt や ⌘ と一緒の矢印キーは、ブラウザの操作（戻る など）なので止めない
+      if (state.placing && /^Arrow/.test(e.key) && !e.altKey && !e.metaKey && !e.ctrlKey &&
+        !/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) && !e.target.isContentEditable) {
         e.preventDefault();
         if (!cursorEl) { showCursor(); return; }
         if (e.target !== cursorEl) { cursorEl.focus({ preventScroll: true }); onCursorKey(e); }
@@ -572,9 +574,13 @@
 
   // 置くモードに入る、または出る。opts.move にピンを渡すと、そのピンの移動先を選ぶモードになる
   // opts.keyboard が true なら、十字のカーソルを出してフォーカスを移す
+  // 移動するピンは、メモの id で覚える。途中で描き直されてもピンの要素は作り直されるので、決めるときに探し直す
   function setPlacing(on, opts) {
     opts = opts || {};
     if (on && !requestClosePopover()) return;
+    var wasMoving = state.moveTarget;
+    // カーソルを消すとフォーカスが body に外れる。カーソルにフォーカスがあったら、あとでバーの「メモ」に戻す
+    var hadCursorFocus = !!cursorEl && document.activeElement === cursorEl;
     state.placing = on;
     state.moveTarget = on && opts.move ? opts.move : null;
     state.placeMode = 'point';
@@ -591,6 +597,12 @@
     if (on && listPanel && !listPanel.hidden) toggleList();
     setPlaceMode('point');
     if (on && opts.keyboard) showCursor();
+    if (!on) {
+      var active = document.activeElement;
+      if (hadCursorFocus) bar.addBtn.focus({ preventScroll: true });
+      // マウスで移動を始めて取り消したときは、動かそうとしたピンに戻す。吹き出しを閉じたときに外れているため
+      else if (wasMoving && (!active || active === document.body)) restoreFocus(wasMoving);
+    }
   }
 
   function setPlaceMode(mode) {
@@ -614,12 +626,13 @@
   // rect はドラッグで引いた範囲。target は押した要素で、点のメモの基準にする
   function placeAt(cx, cy, target, rect) {
     if (state.moveTarget) {
-      var pin = state.moveTarget;
+      var id = state.moveTarget;
       var byKeyboard = !!cursorEl;
       setPlacing(false);
-      movePinTo(pin, cx, cy);
+      var pin = pinFor(id);
+      if (pin) movePinTo(pin, cx, cy);
       // キーボードで動かしたら、動かしたピンにフォーカスを戻す
-      if (byKeyboard) restoreFocus(pin.note.id);
+      if (byKeyboard) restoreFocus(id);
       return;
     }
     var anchor;
@@ -634,6 +647,8 @@
         return;
       }
       var c = cornerClient();
+      // 2つの角が近すぎると、見えない範囲になる。2つ目の角を待ち続ける
+      if (Math.hypot(cx - c.x, cy - c.y) < DRAG_THRESHOLD) return;
       anchor = areaAnchor(c.x, c.y, cx, cy);
     } else {
       anchor = pointAnchor(cx, cy, target);
@@ -697,8 +712,9 @@
       document.body.appendChild(cursorEl);
     }
     // 移動のときはピンの今の位置から、ほかは画面の中央から始める
-    if (state.moveTarget) {
-      var pos = positionOf(state.moveTarget.note, state.moveTarget.anchorEl);
+    var movePin = state.moveTarget && pinFor(state.moveTarget);
+    if (movePin) {
+      var pos = positionOf(movePin.note, movePin.anchorEl);
       cursor = { x: pos.x - window.scrollX, y: pos.y - window.scrollY };
     } else {
       cursor = { x: Math.round(document.documentElement.clientWidth / 2), y: Math.round(window.innerHeight / 2) };
@@ -720,6 +736,7 @@
     if (state.corner) drawCorner(cursor.x, cursor.y);
   }
   function onCursorKey(e) {
+    if (e.altKey || e.metaKey || e.ctrlKey) return;
     var step = e.shiftKey ? CURSOR_STEP_LARGE : CURSOR_STEP;
     var d = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] }[e.key];
     if (d) {
@@ -731,6 +748,8 @@
     }
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
+      // 「メモ」で押した Enter を押し続けると、カーソルが出た直後に置いてしまう。押し続けの分は無視する
+      if (e.repeat) return;
       placeAt(cursor.x, cursor.y, hitElement(cursor.x, cursor.y));
     }
   }
@@ -859,6 +878,8 @@
           e.stopPropagation();
           // ドラッグで動かした直後の click では開かない
           if (takeSwallowedClick()) return;
+          // 置くモードの間にピンを押したら、吹き出しは開かず、その位置を置く場所にする
+          if (state.placing) { placeAt(e.clientX, e.clientY, hitElement(e.clientX, e.clientY)); return; }
           openViewer(pin.note);
         },
       });
@@ -900,7 +921,8 @@
   // 座標は画面座標で扱う。押した時点のピンの画面上の位置に、ポインターの移動量を足す。
   // 描くときと保存するときにだけ、そのときのスクロール量を足してページ座標に直す。途中でスクロールしてもずれない
   function startPinDrag(e, pin) {
-    if (e.button !== 0) return;
+    // 置くモードの間は、ピンを押してもドラッグしない。押した位置を置く場所にするため
+    if (e.button !== 0 || state.placing) return;
     var start = { x: e.clientX, y: e.clientY };
     var page = positionOf(pin.note, pin.anchorEl);
     var sx = window.scrollX, sy = window.scrollY;
@@ -1234,10 +1256,9 @@
     var move = h('button', {
       type: 'button', class: 'pn-btn',
       onclick: function (e) {
-        var pin = pinFor(note.id);
-        if (!pin) return;
+        if (!pinFor(note.id)) return;
         closePopover(KEEP_FOCUS);
-        setPlacing(true, { move: pin, keyboard: e.detail === 0 });
+        setPlacing(true, { move: note.id, keyboard: e.detail === 0 });
       },
     }, label('move', '移動'));
     var k = kindOf(note.kind);
