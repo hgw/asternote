@@ -33,7 +33,7 @@ if (!res.ok) {
   console.error(`取得できませんでした: ${res.status} ${res.statusText}`);
   process.exit(1);
 }
-// 保存データが壊れていると、API は空の一覧を返す。そのまま書くと既存の notes.md の決定事項が消えるので止める
+// 保存データが壊れていると、API は空の一覧を返す。そのまま書くと既存の notes.md の内容が消えるので止める
 if (res.headers.get('X-Pin-Notes-Warning')) {
   console.error(`サーバーの保存データに問題があるため、書き出しを中止しました: ${res.headers.get('X-Pin-Notes-Warning')}`);
   process.exit(1);
@@ -51,11 +51,13 @@ const importanceOf = (v) => {
   return Number.isFinite(n) ? Math.min(MAX_IMPORTANCE, Math.max(0, Math.trunc(n))) : 0;
 };
 
+// 文言と並び順は作業の流れに合わせる。キーは保存データとの互換のため、文言を変える前のまま使う
 const STATUS = [
-  ['decided', '決定'],
-  ['open', '未対応'],
-  ['done', '対応済み'],
+  ['open', '未着手'],
+  ['decided', '確認待ち'],
+  ['done', '完了'],
 ];
+const ANONYMOUS = 'ななしさん';
 const site = new URL(endpoint).origin;
 // UI と同じく、実行環境の時刻で日付を書く。UTC のまま切ると日本時間の朝に日付がずれる
 const pad = (n) => String(n).padStart(2, '0');
@@ -64,7 +66,7 @@ const day = (value) => {
   if (Number.isNaN(d.getTime())) return '';
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 };
-// 改行をそのまま書くと、見出しや「決定」の項目を偽装できる。どの項目も1行にまとめる
+// 改行をそのまま書くと、見出しや状態の項目を偽装できる。どの項目も1行にまとめる
 const oneLine = (s) => String(s ?? '').replace(/\s*[\r\n]+\s*/g, ' / ');
 
 const byPage = new Map();
@@ -92,7 +94,7 @@ for (const [page, list] of [...byPage].sort(([a], [b]) => a.localeCompare(b))) {
     if (!items.length) continue;
     lines.push(`### ${label}`, '');
     for (const n of items) {
-      const meta = [oneLine(n.author) || '名前なし', day(n.updatedAt || n.createdAt)].filter(Boolean).join('、');
+      const meta = [oneLine(n.author) || ANONYMOUS, day(n.updatedAt || n.createdAt)].filter(Boolean).join('、');
       const area = n.rx2 != null && n.ry2 != null ? '［範囲］' : '';
       // 自分のキーだけを見る。constructor などの組み込みの名前を種類として拾わないように
       const kind = Object.hasOwn(KINDS, n.kind) && n.kind !== 'memo' ? `［${KINDS[n.kind]}］` : '';

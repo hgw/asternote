@@ -12,7 +12,7 @@
  * data-ui="none" にすると、起動ボタンを出さない。window.PinNotes の API で操作する。
  * data-default="on" にすると、初めて開いた人にもメモを表示する。表示・非表示を選んだあとは、その選択を優先する。
  * メモは、クリックで点、ドラッグで四角の範囲として残せる。打ったピンはドラッグで動かせる。
- * 対応済みのメモは、バーの「対応済みも表示」にチェックを入れたときだけ表示する。
+ * 完了したメモは、バーの「完了も表示」にチェックを入れたときだけ表示する。
  * data-pin-notes-ignore 属性を付けた要素の中では、メモを置くクリックを横取りしない。
  * 表示中は html に --pin-notes-offset を設定する。値は画面下端からバーや一覧の上端までの高さで、余白は含まない。
  * 左下に置くほかの部品は、この値に余白を足した分だけ上に逃げれば重ならない。
@@ -21,7 +21,7 @@
  * MIT License. https://github.com/hgw/pin-notes
  *
  * アイコンは Lucide v1.76.0 の SVG を使っている。https://lucide.dev
- * plus、x、trash-2、check は Feather 由来で MIT License、ほかは ISC License。
+ * plus、x、arrow-left、clock、trash-2、check は Feather 由来で MIT License、ほかは ISC License。
  *
  * ISC License
  * Copyright (c) 2026 Lucide Icons and Contributors
@@ -65,12 +65,16 @@
     defaultOn: !!(script && script.dataset.default === 'on'),
   };
 
-  // 状態の色は CSS の [data-status] で付ける。色だけに頼らないよう、未対応以外はピンにアイコンも出す
+  // 状態は作業の流れで並べる。指摘が出て未着手、作る人が直して確認待ち、指摘した人が確かめて完了
+  // キーは保存データとの互換のため、文言を変える前の open、decided、done のまま使う
+  // 色は CSS の [data-status] で付ける。色だけに頼らないよう、未着手以外はピンにアイコンも出す
   var STATUS = [
-    { key: 'open', label: '未対応', icon: null },
-    { key: 'decided', label: '決定', icon: 'check' },
-    { key: 'done', label: '対応済み', icon: 'check-check' },
+    { key: 'open', label: '未着手', icon: null },
+    { key: 'decided', label: '確認待ち', icon: 'clock' },
+    { key: 'done', label: '完了', icon: 'check' },
   ];
+  // 名前を書かなかったメモの表示名。保存データには空のまま残す
+  var ANONYMOUS = 'ななしさん';
   // key で探し、見つからなければ最初の要素を返す。状態と種類で共通に使う
   var byKey = function (list, key) {
     return list.filter(function (x) { return x.key === key; })[0] || list[0];
@@ -84,11 +88,12 @@
   var ICONS = {
     'plus': '<path d="M5 12h14"/><path d="M12 5v14"/>',
     'x': '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+    'arrow-left': '<path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>',
     'list': '<path d="M3 5h.01"/><path d="M3 12h.01"/><path d="M3 19h.01"/><path d="M8 5h13"/><path d="M8 12h13"/><path d="M8 19h13"/>',
     'pencil': '<path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/>',
     'trash-2': '<path d="M10 11v6"/><path d="M14 11v6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
     'check': '<path d="M20 6 9 17l-5-5"/>',
-    'check-check': '<path d="M18 6 7 17l-5-5"/><path d="m22 10-7.5 7.5L13 16"/>',
+    'clock': '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
     'sticky-note': '<path d="M21 9a2.4 2.4 0 0 0-.706-1.706l-3.588-3.588A2.4 2.4 0 0 0 15 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2z"/><path d="M15 3v5a1 1 0 0 0 1 1h5"/>',
     'lightbulb': '<path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/>',
     'wrench': '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.106-3.105c.32-.322.863-.22.983.218a6 6 0 0 1-8.259 7.057l-7.91 7.91a1 1 0 0 1-2.999-3l7.91-7.91a6 6 0 0 1 7.057-8.259c.438.12.54.662.219.984z"/>',
@@ -366,7 +371,7 @@
     // 文字は背景に対して 4.5:1 以上、入力欄の枠とフォーカスリングは 3:1 以上。変えるときもこの比を保つ
     var vars = [
       ['fg', '#09090b'], ['muted', '#52525b'], ['bg', '#fff'], ['subtle', '#f4f4f5'], ['subtle-hover', '#e4e4e7'],
-      ['border', '#e4e4e7'], ['input', '#71717a'], ['primary', '#18181b'], ['primary-fg', '#fafafa'], ['ring', '#18181b'],
+      ['border', '#e4e4e7'], ['input', '#71717a'], ['primary', '#047857'], ['primary-fg', '#fff'], ['ring', '#047857'],
       ['danger', '#b91c1c'], ['open', '#c2410c'], ['decided', '#1d4ed8'], ['done', '#52525b'], ['star', '#b45309'], ['radius', '8px'],
     ].map(function (v) { return '--pn-' + v[0] + ':var(--pin-notes-' + v[0] + ',' + v[1] + ')'; }).join(';');
     var css = [
@@ -390,23 +395,26 @@
       '.pn-pin.is-dragging{cursor:grabbing;opacity:.85}',
       '.pn-area{position:absolute;border:2px solid var(--pn-c);border-radius:4px;pointer-events:none}',
       '.pn-area.is-lost{border-style:dashed;opacity:.6}',
-      '.pn-draft{position:fixed;z-index:2147483000;border:2px dashed var(--pn-primary);border-radius:4px;background:rgba(24,24,27,.06);pointer-events:none}',
+      '.pn-draft{position:fixed;z-index:2147483000;border:2px dashed var(--pn-primary);border-radius:4px;background:color-mix(in srgb,var(--pn-primary) 8%,transparent);pointer-events:none}',
       'html.pn-placing{touch-action:none;user-select:none}',
       'html.pn-placing,html.pn-placing *{cursor:crosshair!important}',
       'html.pn-placing [data-pin-notes],html.pn-placing [data-pin-notes] *,html.pn-placing [data-pin-notes-ignore],html.pn-placing [data-pin-notes-ignore] *{cursor:auto!important}',
       'html.pn-placing [data-pin-notes] button,html.pn-placing [data-pin-notes-ignore] button,html.pn-placing [data-pin-notes-ignore] a{cursor:pointer!important}',
       // 浮いている面の枠は飾りなので薄くてよい
-      '.pn-bar,.pn-pop,.pn-list{border:1px solid var(--pn-border);border-radius:var(--pn-radius);background:var(--pn-bg);box-shadow:0 8px 16px rgba(0,0,0,.12)}',
-      '.pn-bar{position:fixed;left:12px;bottom:12px;z-index:2147483001;display:flex;flex-wrap:wrap;gap:6px;align-items:center;max-width:calc(100vw - 24px);padding:6px}',
+      '.pn-island,.pn-pop,.pn-list,.pn-close{border:1px solid var(--pn-border);border-radius:var(--pn-radius);background:var(--pn-bg);box-shadow:0 8px 16px rgba(0,0,0,.12)}',
+      '.pn-bar{position:fixed;left:12px;bottom:12px;z-index:2147483001;display:flex;align-items:center;gap:8px;max-width:calc(100vw - 24px)}',
+      '.pn-island{display:flex;flex-wrap:wrap;gap:6px;align-items:center;min-width:0;padding:6px}',
+      '.pn-close{display:inline-flex;flex:none;align-items:center;justify-content:center;width:36px;height:36px;padding:0;border-radius:999px;color:var(--pn-fg);cursor:pointer}',
+      '.pn-close:hover{background:var(--pn-subtle)}',
       // ボタンは文字で分かるので、枠のコントラストには頼らない
       '.pn-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:32px;padding:0 12px;border:1px solid transparent;border-radius:calc(var(--pn-radius) - 2px);background:var(--pn-subtle);color:var(--pn-fg);font:inherit;font-weight:500;line-height:1;cursor:pointer;white-space:nowrap}',
       '.pn-btn:hover{background:var(--pn-subtle-hover)}',
       '.pn-btn.is-on,.pn-btn--primary{background:var(--pn-primary);color:var(--pn-primary-fg)}',
-      '.pn-btn.is-on:hover,.pn-btn--primary:hover{background:color-mix(in srgb,var(--pn-primary) 88%,#fff)}',
+      '.pn-btn.is-on:hover,.pn-btn--primary:hover{background:color-mix(in srgb,var(--pn-primary) 85%,#000)}',
       '.pn-btn--danger{background:var(--pn-bg);border-color:var(--pn-danger);color:var(--pn-danger)}',
       '.pn-btn--danger:hover{background:color-mix(in srgb,var(--pn-danger) 8%,#fff)}',
       '.pn-btn:disabled{opacity:.5;cursor:default}',
-      '.pn-hint{color:var(--pn-muted)}',
+      '.pn-hint{padding:0 6px;color:var(--pn-muted)}',
       '.pn-hint:empty{display:none}',
       '.pn-check{display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:0 6px;cursor:pointer;white-space:nowrap}',
       '.pn-check input{width:16px;height:16px;margin:0;accent-color:var(--pn-primary)}',
@@ -419,6 +427,7 @@
       '.pn-pop textarea{min-height:88px;resize:vertical}',
       '.pn-title{margin:0 0 4px;font-weight:600;font-size:14px}',
       '.pn-label{margin-top:10px;color:var(--pn-muted);font-size:12px;font-weight:500}',
+      '.pn-sep{margin-top:12px;border-top:1px solid var(--pn-border)}',
       '.pn-seg{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0}',
       // 選択中は塗りで示す。未選択との差は 3:1 以上
       '.pn-seg button{display:inline-flex;align-items:center;gap:4px;min-height:28px;padding:0 8px;border:0;border-radius:calc(var(--pn-radius) - 2px);background:var(--pn-subtle);color:var(--pn-fg);font:inherit;font-size:12px;cursor:pointer}',
@@ -451,9 +460,9 @@
     layer = h('div', { class: 'pn-layer', 'data-pin-notes': '' });
     document.body.appendChild(layer);
 
-    var addBtn = h('button', { type: 'button', class: 'pn-btn pn-btn--primary', onclick: function () { setPlacing(!state.placing); } }, label('plus', 'メモを追加'));
+    var addBtn = h('button', { type: 'button', class: 'pn-btn pn-btn--primary', onclick: function () { setPlacing(!state.placing); } }, label('plus', 'メモ'));
     var listBtn = h('button', { type: 'button', class: 'pn-btn', 'aria-expanded': 'false', onclick: toggleList }, label('list', '一覧'));
-    // 対応済みのメモは、チェックを入れたときだけ表示する。選んだ状態はブラウザに保存する
+    // 完了したメモは、チェックを入れたときだけ表示する。選んだ状態はブラウザに保存する
     state.showDone = ls.get(KEY + 'showDone') === '1';
     var showDoneBox = h('input', { type: 'checkbox' });
     showDoneBox.checked = state.showDone;
@@ -463,14 +472,17 @@
       if (popover && popover.target && popover.target.status === 'done' && !state.showDone) requestClosePopover();
       renderPins();
     });
-    var showDoneLabel = h('label', { class: 'pn-check' }, [showDoneBox, document.createTextNode('対応済みも表示')]);
-    var closeBtn = h('button', { type: 'button', class: 'pn-btn', 'aria-label': 'メモを閉じる', onclick: function () { api.disable(); } }, label('x', '閉じる'));
+    var showDoneLabel = h('label', { class: 'pn-check' }, [showDoneBox, document.createTextNode('完了も表示')]);
+    // 閉じるボタンは、操作の並びと分けて島の外に置く。アイコンだけなので、名前は aria-label で付ける
+    var closeBtn = h('button', { type: 'button', class: 'pn-close', 'aria-label': 'メモを閉じる', title: 'メモを閉じる', onclick: function () { api.disable(); } }, [iconEl('x')]);
     // 案内とエラーは、変わったときに読み上げられるようにする
     var hint = h('span', { class: 'pn-hint', 'data-pn-hint': '', role: 'status' });
     var notice = h('span', { class: 'pn-notice', 'data-pn-notice': '', role: 'status', hidden: '' });
-    bar = h('div', { class: 'pn-bar', 'data-pin-notes': '', role: 'region', 'aria-label': 'メモ', hidden: '' }, [addBtn, listBtn, showDoneLabel, hint, notice, closeBtn]);
+    var island = h('div', { class: 'pn-island' }, [addBtn, listBtn, showDoneLabel, hint, notice]);
+    bar = h('div', { class: 'pn-bar', 'data-pin-notes': '', role: 'region', 'aria-label': 'メモ', hidden: '' }, [island, closeBtn]);
     bar.addBtn = addBtn;
     bar.listBtn = listBtn;
+    bar.showDone = showDoneLabel;
     bar.hint = hint;
     bar.notice = notice;
     if (pendingNotice) setNotice(pendingNotice);
@@ -520,8 +532,12 @@
     document.documentElement.classList.toggle('pn-placing', on);
     bar.addBtn.classList.toggle('is-on', on);
     bar.addBtn.textContent = '';
-    label(on ? 'x' : 'plus', on ? 'やめる' : 'メモを追加').forEach(function (el) { bar.addBtn.appendChild(el); });
-    bar.hint.textContent = on ? 'クリックで点、ドラッグで範囲を指示' : '';
+    label(on ? 'arrow-left' : 'plus', on ? '戻る' : 'メモ').forEach(function (el) { bar.addBtn.appendChild(el); });
+    bar.hint.textContent = on ? 'クリックで点、ドラッグで範囲を指定' : '';
+    // 置いている間は、置く操作に関係のない部品を隠す。一覧も閉じる
+    bar.listBtn.hidden = on;
+    bar.showDone.hidden = on;
+    if (on && listPanel && !listPanel.hidden) toggleList();
   }
 
   var DRAG_THRESHOLD = 6;
@@ -618,7 +634,7 @@
     return state.notes.slice().sort(function (a, b) { return a.createdAt < b.createdAt ? -1 : 1; });
   }
 
-  // 表示するメモと、その番号。番号は対応済みも含めた作成順で振る。隠しても番号がずれないようにする
+  // 表示するメモと、その番号。番号は完了も含めた作成順で振る。隠しても番号がずれないようにする
   function visibleNumbered() {
     return sorted()
       .map(function (note, i) { return { note: note, num: i + 1 }; })
@@ -835,7 +851,7 @@
     if (!requestClosePopover()) return;
     var body = h('textarea', { placeholder: '決まったこと、直したいこと', 'aria-label': '本文' });
     body.value = note ? note.body : '';
-    var author = h('input', { type: 'text', placeholder: '名前', 'aria-label': '名前', autocomplete: 'name', value: (note && note.author) || ls.get('pin-notes:author') || '' });
+    var author = h('input', { type: 'text', placeholder: ANONYMOUS, 'aria-label': '名前', autocomplete: 'name', value: (note && note.author) || ls.get('pin-notes:author') || '' });
     var status = h('select', { 'aria-label': '状態' }, STATUS.map(function (s) {
       var o = h('option', { value: s.key, text: s.label });
       if ((note ? note.status : 'open') === s.key) o.selected = true;
@@ -908,11 +924,13 @@
     showPopover([
       h('div', { class: 'pn-label', text: '種類' }),
       kind,
-      body, author,
+      body,
       h('div', { class: 'pn-label', text: '重要度' }),
       importance,
       h('div', { class: 'pn-label', text: '状態' }),
       status,
+      // 名前はメモの中身ではないので、罫線で分けて保存の直前に置く
+      h('div', { class: 'pn-sep' }, [h('div', { class: 'pn-label', text: '名前' }), author]),
       error,
       h('div', { class: 'pn-row' }, [save, cancel]),
     ], note ? 'メモを編集' : '新しいメモ', returnTo);
@@ -969,7 +987,7 @@
         imp ? starsEl(imp) : null,
       ]),
       h('p', { class: 'pn-body', text: note.body }),
-      h('div', { class: 'pn-meta', text: (note.author || '名前なし') + '｜' + formatDate(note.updatedAt || note.createdAt) }),
+      h('div', { class: 'pn-meta', text: (note.author || ANONYMOUS) + '｜' + formatDate(note.updatedAt || note.createdAt) }),
       h('div', { class: 'pn-row' }, [statusSel]),
       h('div', { class: 'pn-row' }, [edit, del, close]),
     ], num > 0 ? 'メモ ' + num : 'メモ', returnTo || note.id);
@@ -980,7 +998,7 @@
     popover.focus({ preventScroll: true });
   }
 
-  // 状態のラベル。色に加えて、未対応以外はアイコンも付ける
+  // 状態のラベル。色に加えて、未着手以外はアイコンも付ける
   function statusTag(s, prefix) {
     var tag = h('span', { class: 'pn-tag', 'data-status': s.key });
     if (s.icon) tag.appendChild(iconEl(s.icon));
@@ -1022,7 +1040,7 @@
     var items = visibleNumbered();
     if (!items.length) {
       var hidden = state.notes.length - items.length;
-      var text = hidden ? '対応済みのメモが ' + hidden + ' 件あります。「対応済みも表示」で見られます。' : 'このページのメモはまだありません。';
+      var text = hidden ? '完了したメモが ' + hidden + ' 件あります。「完了も表示」で見られます。' : 'このページのメモはまだありません。';
       listPanel.appendChild(h('p', { class: 'pn-empty', text: text }));
       return;
     }
@@ -1045,7 +1063,7 @@
           importanceOf(n) ? starsEl(importanceOf(n)) : null,
         ]),
         h('span', { class: 'pn-line', text: n.body.length > 60 ? n.body.slice(0, 60) + '…' : n.body }),
-        h('span', { class: 'pn-meta pn-line', text: (n.author || '名前なし') + '｜' + formatDate(n.updatedAt || n.createdAt) }),
+        h('span', { class: 'pn-meta pn-line', text: (n.author || ANONYMOUS) + '｜' + formatDate(n.updatedAt || n.createdAt) }),
       ]);
       return h('li', {}, [item]);
     })));

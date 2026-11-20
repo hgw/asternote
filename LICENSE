@@ -23,7 +23,7 @@ SOFTWARE.
 ---
 
 pin-notes.js には Lucide v1.76.0 のアイコンを埋め込んでいる。https://lucide.dev
-使っているアイコン: plus, x, list, pencil, trash-2, check, check-check, sticky-note, lightbulb, wrench, circle-help, heart
+使っているアイコン: plus, x, arrow-left, list, pencil, trash-2, check, clock, sticky-note, lightbulb, wrench, circle-help, heart
 Lucide のライセンスは次のとおり。
 
 ISC License
