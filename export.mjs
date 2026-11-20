@@ -2,7 +2,7 @@
 // pin-notes のメモを取得し、Markdown に書き出す。依存なし。Node 18 以降。
 //
 // 使い方:
-//   PIN_NOTES_AUTH="user:pass" node export.mjs \
+//   PIN_NOTES_AUTH="user:pass" pin-notes-export \
 //     --endpoint https://example.com/pin-notes/api.php \
 //     --project myproject \
 //     --out docs/notes.md
@@ -11,17 +11,25 @@
 import { writeFile, mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
-const args = Object.fromEntries(
-  process.argv.slice(2).reduce((acc, cur, i, arr) => {
-    if (cur.startsWith('--')) acc.push([cur.slice(2), arr[i + 1]]);
-    return acc;
-  }, []),
-);
-const usage = '使い方: node export.mjs --endpoint <URL> --project <名前> [--out <ファイル>]';
-// --help は使い方を出して正常に終わる。pin-notes-copy とそろえる
-if (process.argv.includes('--help') || process.argv.includes('-h')) {
-  console.log(usage);
-  process.exit(0);
+// 引数は1つずつ読む。オプションの値に -h が来ても、使い方の表示と取り違えない
+// 知らないオプションは断る。書き間違いを黙って無視すると、思わぬ場所に書き出すため
+const usage = '使い方: pin-notes-export --endpoint <URL> --project <名前> [--out <ファイル>]';
+const KNOWN = ['endpoint', 'project', 'out'];
+const args = {};
+const argv = process.argv.slice(2);
+for (let i = 0; i < argv.length; i++) {
+  const a = argv[i];
+  if (a === '--help' || a === '-h') {
+    console.log(usage);
+    process.exit(0);
+  }
+  const key = a.startsWith('--') ? a.slice(2) : null;
+  if (!key || !KNOWN.includes(key) || argv[i + 1] === undefined) {
+    console.error(key && KNOWN.includes(key) ? `pin-notes-export: ${a} に値がありません` : `pin-notes-export: 知らない引数です: ${a}`);
+    console.error(usage);
+    process.exit(1);
+  }
+  args[key] = argv[++i];
 }
 const { endpoint, project, out = 'notes.md' } = args;
 if (!endpoint || !project) {
