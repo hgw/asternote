@@ -18,7 +18,10 @@
 2. `api.php` と同じ場所に `pin-notes.config.php` を置き、保存先を書く。保存先はドキュメントルートの外にする
 
    ```php
-   <?php return ['data_dir' => '/home/xxx/data/example.com/pin-notes'];
+   <?php return [
+       'data_dir' => '/home/xxx/data/example.com/pin-notes',
+       'projects' => ['myproject'],
+   ];
    ```
 
 3. ページに script タグを足す
@@ -30,6 +33,27 @@
    ```
 
 4. サイト全体に Basic 認証をかける。api.php は書き込みの制限を持たない
+
+## 設定ファイル
+
+`pin-notes.config.php` に書く値は次のとおり。
+
+| キー | 意味 |
+|---|---|
+| `data_dir` | 必須。メモの保存先。ドキュメントルートの中を指すと、api.php は 500 を返して止まる |
+| `projects` | 任意。使える `data-project` の名前の配列。書いておくと、ほかの名前では保存ファイルを作れない |
+| `allow_anonymous` | 任意。`true` にすると、Basic 認証の確認を外す |
+
+api.php は、Basic 認証を通っていないリクエストを 403 で断る。かけ忘れたまま動き続けないようにするため。
+
+- 確認には、サーバーが PHP に渡す `REMOTE_USER` などの値を使う
+- 手元の `php -S` には Basic 認証がない。手元で試すときだけ `allow_anonymous` を `true` にする
+- Basic 認証の ID を PHP に渡さないサーバーでも、`allow_anonymous` が必要になる
+
+ほかにも、次の上限がある。
+
+- 1つの project に保存できるメモは 2000 件まで
+- 1回の書き込みのリクエストは 64KB まで
 
 ## 設定
 

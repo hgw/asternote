@@ -8,8 +8,13 @@
  * POST {action:delete, id}          メモを削除する
  *
  * 書き込みの制限は、サーバー側の Basic 認証などに任せる。
- * 保存先は同じディレクトリの pin-notes.config.php で指定する。
- *   <?php return ['data_dir' => '/path/outside/docroot'];
+ * Basic 認証を通っていないリクエストは断る。かけ忘れたまま動き続けないようにするため。
+ * 設定は同じディレクトリの pin-notes.config.php に書く。
+ *   <?php return [
+ *       'data_dir' => '/path/outside/docroot', // 必須。保存先。ドキュメントルートの外にする
+ *       'projects' => ['myproject'],            // 任意。使える project 名を限る
+ *       'allow_anonymous' => false,             // 任意。true で Basic 認証の確認を外す
+ *   ];
  */
 
 declare(strict_types=1);
@@ -26,6 +31,10 @@ const STATUSES = ['open', 'decided', 'done'];
 // 種類のキーと重要度の上限は pin-notes.js と export.mjs にも同じ値がある。変えるときは3か所をそろえる
 const KINDS = ['memo', 'idea', 'fix', 'info', 'like'];
 const MAX_IMPORTANCE = 3;
+// 1つの project に保存できるメモの数。ディスクを埋められないようにする
+const MAX_NOTES = 2000;
+// POST の本文の上限。メモ1件は本文 2000 字と位置の値なので、これで十分に収まる
+const MAX_REQUEST_BYTES = 65536;
 
 /** 種類。知らない値は「メモ」にする */
 function kind_value($value): string
@@ -54,18 +63,72 @@ function respond(int $code, array $data): void
 
 function config(): array
 {
+    static $config = null;
+    if ($config !== null) return $config;
     $file = __DIR__ . '/pin-notes.config.php';
-    $config = is_file($file) ? require $file : [];
-    if (!is_array($config) || empty($config['data_dir'])) {
+    $loaded = is_file($file) ? require $file : [];
+    if (!is_array($loaded) || empty($loaded['data_dir']) || !is_string($loaded['data_dir'])) {
         respond(500, ['error' => 'data_dir が設定されていません']);
     }
-    return $config;
+    return $config = $loaded;
+}
+
+/** $path が $dir と同じか、その中にあるか。どちらも実在するパスで比べる */
+function path_within(string $path, string $dir): bool
+{
+    $dir = rtrim($dir, '/');
+    return $dir !== '' && ($path === $dir || strpos($path . '/', $dir . '/') === 0);
+}
+
+/**
+ * 保存先のディレクトリを返す。なければ作る。
+ * ドキュメントルートの中にあれば止める。保存データを URL で誰でも読めてしまうため。
+ */
+function data_dir(): string
+{
+    $dir = rtrim(config()['data_dir'], '/');
+    if (!is_dir($dir) && !@mkdir($dir, 0700, true)) {
+        respond(500, ['error' => '保存先を作れません']);
+    }
+    $real = realpath($dir);
+    if ($real === false) {
+        respond(500, ['error' => '保存先を確かめられません']);
+    }
+    // api.php の置き場所は公開ディレクトリの中にある。DOCUMENT_ROOT が取れない環境でも、ここで止められる
+    $roots = [__DIR__];
+    $docroot = realpath((string) ($_SERVER['DOCUMENT_ROOT'] ?? ''));
+    if ($docroot !== false) $roots[] = $docroot;
+    foreach ($roots as $root) {
+        if (path_within($real, $root)) {
+            respond(500, ['error' => '保存先がドキュメントルートの中にあります。外に移してください']);
+        }
+    }
+    return $real;
+}
+
+/**
+ * Basic 認証を通ったリクエストかを確かめる。
+ * 認証のかけ忘れに気づけるように、通っていなければ止める。
+ * CGI で動くレンタルサーバーでは REMOTE_USER、mod_rewrite を経ると REDIRECT_REMOTE_USER に入る。
+ */
+function require_auth(): void
+{
+    if ((config()['allow_anonymous'] ?? false) === true) return;
+    foreach (['REMOTE_USER', 'REDIRECT_REMOTE_USER', 'PHP_AUTH_USER'] as $key) {
+        if (!empty($_SERVER[$key])) return;
+    }
+    respond(403, ['error' => 'Basic 認証の情報が届いていません。サイトに Basic 認証をかけてください。認証なしで使う場合は、設定に allow_anonymous を書いてください']);
 }
 
 function project_name($value): string
 {
     if (!is_string($value) || !preg_match('/^[a-z0-9_-]{1,40}$/', $value)) {
         respond(400, ['error' => 'project が不正です']);
+    }
+    // 設定で限っていれば、それ以外の名前では保存ファイルを作らせない
+    $allowed = config()['projects'] ?? null;
+    if (is_array($allowed) && !in_array($value, $allowed, true)) {
+        respond(404, ['error' => 'project が見つかりません']);
     }
     return $value;
 }
@@ -119,11 +182,13 @@ const POSITION_KEYS = ['selector', 'rx', 'ry', 'px', 'py', 'rx2', 'ry2', 'px2', 
  */
 function with_notes(string $project, callable $fn, bool $write, bool $recover = false)
 {
-    $dir = rtrim(config()['data_dir'], '/');
-    if (!is_dir($dir) && !@mkdir($dir, 0700, true)) {
-        respond(500, ['error' => '保存先を作れません']);
-    }
+    $dir = data_dir();
     $path = "$dir/$project.json";
+    // 読むだけで、まだ保存データがなければ空を返す。ロックファイルも作らない
+    // 存在しない project 名を次々に読ませて、ファイルを増やされないようにするため
+    if (!$write && !is_file($path)) {
+        return $fn([])['return'];
+    }
     $lock = @fopen("$path.lock", 'c');
     if (!$lock || !flock($lock, $write ? LOCK_EX : LOCK_SH)) {
         respond(500, ['error' => 'ロックを取れません']);
@@ -175,6 +240,8 @@ function with_notes(string $project, callable $fn, bool $write, bool $recover = 
 
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 
+require_auth();
+
 if ($method === 'GET') {
     $project = project_name($_GET['project'] ?? '');
     $page = isset($_GET['page']) ? text($_GET['page'], 300) : null;
@@ -195,7 +262,15 @@ if (($_SERVER['HTTP_X_PIN_NOTES'] ?? '') !== '1') {
     respond(403, ['error' => 'ヘッダーがありません']);
 }
 
-$input = json_decode((string) file_get_contents('php://input'), true);
+// 大きすぎる本文は読み切る前に断る。Content-Length は偽れるので、読んだ長さでも確かめる
+if ((int) ($_SERVER['CONTENT_LENGTH'] ?? 0) > MAX_REQUEST_BYTES) {
+    respond(413, ['error' => 'リクエストが大きすぎます']);
+}
+$raw = (string) file_get_contents('php://input', false, null, 0, MAX_REQUEST_BYTES + 1);
+if (strlen($raw) > MAX_REQUEST_BYTES) {
+    respond(413, ['error' => 'リクエストが大きすぎます']);
+}
+$input = json_decode($raw, true);
 if (!is_array($input)) {
     respond(400, ['error' => 'JSON が不正です']);
 }
@@ -221,6 +296,9 @@ if ($action === 'create') {
         'updatedAt' => $now,
     ];
     with_notes($project, function (array $notes) use ($note) {
+        if (count($notes) >= MAX_NOTES) {
+            respond(409, ['error' => 'メモの数が上限の ' . MAX_NOTES . ' 件に達しています']);
+        }
         $notes[] = $note;
         return ['save' => $notes, 'return' => $note];
     }, true, true);
