@@ -367,6 +367,11 @@ function handle($config): void
 }
 
 // 直接開かれたときだけ、隣の設定ファイルで動く。ライブラリとして読み込まれたときは関数の定義だけにする
+// WordPress のプラグインの中に置かれたものは、直接開かれても 404 だけを返す。導入していることを知らせないため
+if (!\defined('PIN_NOTES_LIBRARY') && \is_file(__DIR__ . '/pin-notes.php')) {
+    \http_response_code(404);
+    exit;
+}
 if (!\defined('PIN_NOTES_LIBRARY')) {
     $file = __DIR__ . '/pin-notes.config.php';
     handle(is_file($file) ? (require $file) : []);

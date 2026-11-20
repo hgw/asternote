@@ -72,13 +72,15 @@ WordPress のプラグインとして入れる。script タグも API も、プ�
 | 定数 | 意味 |
 |---|---|
 | `PIN_NOTES_DATA_DIR` | 必須。メモの保存先。ドキュメントルートの外にする |
-| `PIN_NOTES_PROJECT` | 任意。メモの保存単位。英小文字、数字、`-`、`_`。省くと `site` |
-| `PIN_NOTES_ALLOW_ANONYMOUS` | 任意。`true` にすると、Basic 認証の確認を外す |
-| `PIN_NOTES_DEFAULT_ON` | 任意。`true` にすると、初めて開いた人にもメモを表示する |
+| `PIN_NOTES_PROJECT` | 任意。メモの保存単位。英小文字、数字、`-`、`_` で40字まで。省くと `site` |
+| `PIN_NOTES_ALLOW_ANONYMOUS` | 任意。`true` にすると、Basic 認証の確認を外す。`1` や `'true'` でもよい |
+| `PIN_NOTES_DEFAULT_ON` | 任意。`true` にすると、初めて開いた人にもメモを表示する。`1` や `'true'` でもよい |
 
 `PIN_NOTES_DATA_DIR` を書いていない環境では、プラグインは何もしない。script タグも API も出さない。テスト環境の `wp-config.php` にだけ定数を書けば、本番にプラグインが入っていても動かない。
 
-API は `wp-admin/admin-ajax.php?action=pin_notes` で受ける。書き出しのときは、この URL を `--endpoint` に渡す。
+`PIN_NOTES_PROJECT` の形が違うときも、プラグインは何もしない。理由は PHP のエラーログに書く。
+
+API は `wp-admin/admin-ajax.php?action=pin_notes` で受ける。書き出しのときは、この URL を `--endpoint` に渡す。管理画面と表のサイトのホストが違うときは、`--site` に表のサイトの URL も渡す。
 
 mu-plugins に置くときは、zip の中の `pin-notes` フォルダを `wp-content/mu-plugins/` に置く。そのうえで、読み込むだけのファイルを `wp-content/mu-plugins/pin-notes-loader.php` として足す。
 

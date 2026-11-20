@@ -9,11 +9,12 @@
  *
  * 設定は wp-config.php の定数で書く。
  *   define('PIN_NOTES_DATA_DIR', '/home/xxx/data/example.com/pin-notes'); // 必須。保存先。ドキュメントルートの外にする
- *   define('PIN_NOTES_PROJECT', 'myproject');   // 任意。メモの保存単位。省くと site
+ *   define('PIN_NOTES_PROJECT', 'myproject');   // 任意。メモの保存単位。英小文字、数字、-、_ で40字まで。省くと site
  *   define('PIN_NOTES_ALLOW_ANONYMOUS', true);  // 任意。Basic 認証の確認を外す
  *   define('PIN_NOTES_DEFAULT_ON', true);       // 任意。初めて開いた人にもメモを表示する
  *
- * PIN_NOTES_DATA_DIR がなければ何もしない。本番に入れてしまっても、script タグも API も出さない。
+ * PIN_NOTES_DATA_DIR がない、または空なら何もしない。本番に入れてしまっても、script タグも API も出さない。
+ * PIN_NOTES_PROJECT の形が違うときも何もせず、PHP のエラーログに理由を書く。
  * mu-plugins に置くときは、このフォルダを置いたうえで、読み込むだけのファイルを mu-plugins の直下に足す。
  */
 
@@ -24,27 +25,41 @@ if (!defined('ABSPATH')) {
 // 設定がない環境では何もしない。フックを1つも登録しない
 // 通常のプラグインと mu-plugins の両方に置いて2回読み込まれたときも、2回目は何もしない
 // 関数をファイルの一番外側に書くと、ここより前に定義されて二重定義のエラーになる。そのため条件の中に書く
-if (defined('PIN_NOTES_DATA_DIR') && !defined('PIN_NOTES_VERSION')) {
+// project 名は api.php と同じく、英小文字、数字、-、_ で40字まで。形が違えば、黙って別の名前に置き換えずに止める
+// 置き換えると、書き出しで設定した名前を指定したときに見つからず、メモが消えたように見えるため
+$pin_notes_ok = defined('PIN_NOTES_DATA_DIR') && is_string(PIN_NOTES_DATA_DIR) && PIN_NOTES_DATA_DIR !== '' && !defined('PIN_NOTES_VERSION');
+if ($pin_notes_ok && defined('PIN_NOTES_PROJECT') && !(is_string(PIN_NOTES_PROJECT) && preg_match('/^[a-z0-9_-]{1,40}$/', PIN_NOTES_PROJECT))) {
+    // サーバーのエラーログは日本語を読める形で残さないことがあるので、英語で書く
+    error_log('pin-notes: PIN_NOTES_PROJECT must be 1-40 characters of a-z, 0-9, - or _. The plugin is disabled.');
+    $pin_notes_ok = false;
+}
+if ($pin_notes_ok) {
     define('PIN_NOTES_VERSION', '0.7.0');
     define('PIN_NOTES_AJAX_ACTION', 'pin_notes');
 
-    /** script タグと API で使う project 名。api.php と同じく、英小文字、数字、-、_ だけ */
+    /** script タグと API で使う project 名。形は上で確かめてある */
     function pin_notes_project(): string
     {
-        $project = defined('PIN_NOTES_PROJECT') ? (string) PIN_NOTES_PROJECT : 'site';
-        return preg_match('/^[a-z0-9_-]{1,40}$/', $project) ? $project : 'site';
+        return defined('PIN_NOTES_PROJECT') ? PIN_NOTES_PROJECT : 'site';
+    }
+
+    /** 真偽の定数。true のほか、1 や 'true' も有効として扱う。書き方の違いで黙って無視しないため */
+    function pin_notes_flag(string $name): bool
+    {
+        return defined($name) && filter_var(constant($name), FILTER_VALIDATE_BOOLEAN);
     }
 
     // 画面の下に script タグを出す。管理画面には出さない
     add_action('wp_footer', function () {
         $src = add_query_arg('ver', PIN_NOTES_VERSION, plugins_url('pin-notes.js', __FILE__));
-        $endpoint = add_query_arg('action', PIN_NOTES_AJAX_ACTION, admin_url('admin-ajax.php'));
+        // 相対 URL にして、表のサイトと同じ場所に送る。管理画面だけ https や別のホストのとき、別サイト扱いで保存できなくなるため
+        $endpoint = add_query_arg('action', PIN_NOTES_AJAX_ACTION, admin_url('admin-ajax.php', 'relative'));
         printf(
             '<script src="%s" data-endpoint="%s" data-project="%s"%s defer></script>' . "\n",
             esc_url($src),
             esc_url($endpoint),
             esc_attr(pin_notes_project()),
-            (defined('PIN_NOTES_DEFAULT_ON') && PIN_NOTES_DEFAULT_ON === true) ? ' data-default="on"' : ''
+            pin_notes_flag('PIN_NOTES_DEFAULT_ON') ? ' data-default="on"' : ''
         );
     });
 
@@ -56,12 +71,15 @@ if (defined('PIN_NOTES_DATA_DIR') && !defined('PIN_NOTES_VERSION')) {
             define('PIN_NOTES_LIBRARY', true);
         }
         require_once __DIR__ . '/api.php';
+        // WordPress は $_GET の値に \ を足している。ページのパスの ' などで、保存した値と一致しなくなるので戻す
+        $_GET = wp_unslash($_GET);
         \PinNotes\handle([
             'data_dir' => (string) PIN_NOTES_DATA_DIR,
             'projects' => [pin_notes_project()],
-            'allow_anonymous' => defined('PIN_NOTES_ALLOW_ANONYMOUS') && PIN_NOTES_ALLOW_ANONYMOUS === true,
+            'allow_anonymous' => pin_notes_flag('PIN_NOTES_ALLOW_ANONYMOUS'),
         ]);
     }
     add_action('wp_ajax_' . PIN_NOTES_AJAX_ACTION, 'pin_notes_ajax');
     add_action('wp_ajax_nopriv_' . PIN_NOTES_AJAX_ACTION, 'pin_notes_ajax');
 }
+unset($pin_notes_ok);
