@@ -1,7 +1,7 @@
 # pin-notes
 
-プレビュー画面にピンを立ててメモを残すツール。
-画面を見ながら決めたことを、その場で記録する。
+プレビュー画面にピンと範囲でメモを残すツール。
+制作中のサイトを関係者と見ながら、気づいたことや決めたことを、画面のその場所に記録する。
 依存はなく、JS 1つと PHP 1つで動く。
 
 ## ファイル
@@ -11,11 +11,52 @@
 | `pin-notes.js` | ブラウザ側。ピンの表示と書き込み |
 | `api.php` | サーバー側。メモを JSON で保存する。PHP 7.4 以降 |
 | `export.mjs` | メモを Markdown に書き出す。Node 18 以降 |
+| `copy.mjs` | npm で入れたとき、`pin-notes.js` と `api.php` を公開ディレクトリに複製する |
 
-## 組み込み方
+## 導入する前に
 
-1. `pin-notes.js` と `api.php` を公開ディレクトリに置く
-2. `api.php` と同じ場所に `pin-notes.config.php` を置き、保存先を書く。保存先はドキュメントルートの外にする
+- サイト全体に Basic 認証をかける。pin-notes は、利用者ごとの権限を持たない
+- メモのデータは、案件ごとにその案件のサーバーに保存する。このリポジトリには入らない
+- 保存先は、ドキュメントルートの外に用意する
+
+## 導入方法1: Astro など Node.js の案件
+
+GitHub から npm で入れる。バージョンはタグで指定する。
+
+```sh
+npm i github:hgw/pin-notes#v0.1.0
+```
+
+`pin-notes-copy` で、`pin-notes.js` と `api.php` を公開ディレクトリに複製する。
+`--config` を付けると、設定ファイルも複製する。
+開発サーバーとビルドの前に毎回複製するように、`package.json` に書いておく。
+
+```json
+{
+  "scripts": {
+    "predev": "pin-notes-copy public/pin-notes --config pin-notes.config.php",
+    "prebuild": "pin-notes-copy public/pin-notes --config pin-notes.config.php"
+  }
+}
+```
+
+複製したファイルは git に入れない。`.gitignore` に `public/pin-notes/` を足す。
+設定ファイルには保存先のパスが入る。案件のリポジトリが公開なら、設定ファイルも git に入れない。
+
+ページに script タグを足す。Astro では、手元の開発サーバーで `data-endpoint` を空にする。
+
+```astro
+<script is:inline src="/pin-notes/pin-notes.js"
+        data-endpoint={import.meta.env.DEV ? '' : '/pin-notes/api.php'}
+        data-project="myproject" defer></script>
+```
+
+## 導入方法2: WordPress や静的サイト
+
+`pin-notes.js` は jsDelivr から読み込む。サーバーに置くのは `api.php` と設定ファイルだけ。
+
+1. `api.php` をサーバーの公開ディレクトリに置く。例 `/pin-notes/api.php`
+2. `api.php` と同じ場所に `pin-notes.config.php` を置く
 
    ```php
    <?php return [
@@ -24,15 +65,15 @@
    ];
    ```
 
-3. ページに script タグを足す
+3. ページに script タグを足す。WordPress なら、テーマの `footer.php` などに書く
 
    ```html
-   <script src="/pin-notes/pin-notes.js"
+   <script src="https://cdn.jsdelivr.net/gh/hgw/pin-notes@v0.1.0/pin-notes.js"
            data-endpoint="/pin-notes/api.php"
            data-project="myproject" defer></script>
    ```
 
-4. サイト全体に Basic 認証をかける。api.php は書き込みの制限を持たない
+`api.php` は、script タグと同じバージョンのタグからダウンロードする。
 
 ## 設定ファイル
 
@@ -55,7 +96,7 @@ api.php は、Basic 認証を通っていないリクエストを 403 で断る�
 - 1つの project に保存できるメモは 2000 件まで
 - 1回の書き込みのリクエストは 64KB まで
 
-## 設定
+## script タグの属性
 
 | 属性 | 意味 |
 |---|---|
@@ -68,7 +109,7 @@ api.php は、Basic 認証を通っていないリクエストを 403 で断る�
 
 メモのバーや一覧が出ている間は、`html` に CSS 変数 `--pin-notes-offset` を設定する。値は画面下端からバーや一覧の上端までの高さ。値に余白は含まない。左下に置くほかの部品は、`bottom: max(16px, calc(var(--pin-notes-offset, 0px) + 8px))` のように余白を足して使う。
 
-## API
+## JavaScript の API
 
 ```js
 PinNotes.enable();   // メモを表示する
@@ -100,6 +141,9 @@ PinNotes.onChange((enabled) => { ... });
 
 ## 書き出し
 
+メモを Markdown に書き出す。npm で入れた案件では `npx pin-notes-export` でも動く。
+`PIN_NOTES_AUTH` には Basic 認証の ID とパスワードを入れる。シェルの履歴に残さないように、パスワード管理のツールから読み込むとよい。
+
 ```sh
 PIN_NOTES_AUTH="user:pass" node export.mjs \
   --endpoint https://example.com/pin-notes/api.php \
@@ -127,3 +171,8 @@ PIN_NOTES_AUTH="user:pass" node export.mjs \
   - 作成のときだけ、`<名前>.json.corrupt-<日時>` に退避して空から続ける。中身は手で戻せる
 - 書き込みは一時ファイルに書いてから置き換える。失敗したらエラーを返し、元のファイルは残る
 - 読み取りは共有ロック、書き込みは排他ロックを取る
+
+## ライセンス
+
+MIT。詳しくは [LICENSE](LICENSE) を見る。
+不具合の報告や Pull Request の扱いは [CONTRIBUTING.md](CONTRIBUTING.md)、脆弱性の報告は [SECURITY.md](SECURITY.md) に書いた。
