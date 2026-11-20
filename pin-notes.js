@@ -981,7 +981,7 @@
         imp ? starsEl(imp) : null,
       ]),
       h('p', { class: 'pn-body', text: note.body }),
-      h('div', { class: 'pn-meta', text: (note.author || ANONYMOUS) + '｜' + formatDate(note.updatedAt || note.createdAt) }),
+      metaEl('div', note),
       h('div', { class: 'pn-row' }, [toggleDone, edit, del]),
     ], num > 0 ? 'メモ ' + num : 'メモ', returnTo || note.id);
     popover.target = note;
@@ -1056,19 +1056,46 @@
           importanceOf(n) ? starsEl(importanceOf(n)) : null,
         ]),
         h('span', { class: 'pn-line', text: n.body.length > 60 ? n.body.slice(0, 60) + '…' : n.body }),
-        h('span', { class: 'pn-meta pn-line', text: (n.author || ANONYMOUS) + '｜' + formatDate(n.updatedAt || n.createdAt) }),
+        metaEl('span', n, 'pn-line'),
       ]);
       return h('li', {}, [item]);
     })));
   }
 
-  function formatDate(iso) {
-    var d = new Date(iso);
-    if (isNaN(d)) return '';
-    var p = function (n) { return String(n).padStart(2, '0'); };
-    return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+  // 名前と日時の行。一覧ではボタンの中に置くので、要素の種類を選べるようにする
+  function metaEl(tag, note, extra) {
+    return h(tag, { class: 'pn-meta' + (extra ? ' ' + extra : '') }, [
+      document.createTextNode((note.author || ANONYMOUS) + '｜'),
+      timeEl(note.updatedAt || note.createdAt),
+    ]);
   }
 
+  // 1週間未満は「5分前」のように相対で、それより前は日付で書く。正確な日時は title で見られる
+  // 相対の表示は、吹き出しや一覧を描いた時点で決める。開いたまま時間がたっても書き換えない
+  var WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+  function timeEl(iso) {
+    var d = new Date(iso);
+    if (isNaN(d)) return h('span', {});
+    return h('time', { datetime: d.toISOString(), title: formatDate(d, true), text: relativeDate(d, new Date()) });
+  }
+
+  function relativeDate(d, now) {
+    var diff = now - d;
+    // 端末の時計のずれで未来の日時になったときも「たった今」にする
+    if (diff < 60 * 1000) return 'たった今';
+    if (diff >= WEEK_MS) return formatDate(d, false);
+    var min = Math.floor(diff / 60000);
+    if (min < 60) return min + '分前';
+    var hours = Math.floor(min / 60);
+    if (hours < 24) return hours + '時間前';
+    return Math.floor(hours / 24) + '日前';
+  }
+
+  function formatDate(d, withTime) {
+    var p = function (n) { return String(n).padStart(2, '0'); };
+    var date = d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+    return withTime ? date + ' ' + p(d.getHours()) + ':' + p(d.getMinutes()) : date;
+  }
 
   function showError(prefix, err) {
     bar.hint.textContent = prefix + ': ' + (err && err.message ? err.message : err);

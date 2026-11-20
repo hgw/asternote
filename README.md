@@ -24,7 +24,7 @@
 GitHub から npm で入れる。バージョンはタグで指定する。
 
 ```sh
-npm i github:hgw/pin-notes#v0.4.1
+npm i github:hgw/pin-notes#v0.4.2
 ```
 
 `pin-notes-copy` で、`pin-notes.js` と `api.php` を公開ディレクトリに複製する。
@@ -68,7 +68,7 @@ npm i github:hgw/pin-notes#v0.4.1
 3. ページに script タグを足す。WordPress なら、テーマの `footer.php` などに書く
 
    ```html
-   <script src="https://cdn.jsdelivr.net/gh/hgw/pin-notes@v0.4.1/pin-notes.js"
+   <script src="https://cdn.jsdelivr.net/gh/hgw/pin-notes@v0.4.2/pin-notes.js"
            data-endpoint="/pin-notes/api.php"
            data-project="myproject" defer></script>
    ```
@@ -183,6 +183,7 @@ PinNotes.onChange((enabled) => { ... });
 - 完了したメモは、バーの「完了も表示」にチェックを入れたときだけ表示する。チェックの状態はブラウザに保存する
 - ピンの番号は、完了も含めた作成順で振る。完了を隠しても番号はずれない
 - 名前を書かなかったメモは「ななしさん」と表示する。保存データの名前は空のまま
+- 日時は、1週間未満なら「5分前」「17時間前」のように相対で、それより前は日付で表示する。マウスを乗せると、正確な日時が出る
 - 「一覧」で、そのページのメモを一覧できる
 - ピンは、クリックした要素からの相対位置で記録する。要素が消えた場合は、記録時の座標に点線付きで表示する
 - 固定表示の要素やスクロールする枠の中に置いたピンも、スクロールに合わせて位置を計算し直す
