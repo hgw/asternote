@@ -187,7 +187,8 @@
     }
     return {
       list: function (page) {
-        var q = '?project=' + encodeURIComponent(config.project) + '&page=' + encodeURIComponent(page);
+        // WordPress の admin-ajax.php?action=pin_notes のように、URL にすでに ? があれば & でつなぐ
+        var q = (config.endpoint.indexOf('?') === -1 ? '?' : '&') + 'project=' + encodeURIComponent(config.project) + '&page=' + encodeURIComponent(page);
         return fetch(config.endpoint + q, { credentials: 'same-origin', cache: 'no-store' })
           .then(parse)
           .then(function (r) {

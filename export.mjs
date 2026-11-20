@@ -13,8 +13,8 @@ import { dirname } from 'node:path';
 
 // 引数は1つずつ読む。オプションの値に -h が来ても、使い方の表示と取り違えない
 // 知らないオプションは断る。書き間違いを黙って無視すると、思わぬ場所に書き出すため
-const usage = '使い方: pin-notes-export --endpoint <URL> --project <名前> [--out <ファイル>]';
-const KNOWN = ['endpoint', 'project', 'out'];
+const usage = '使い方: pin-notes-export --endpoint <URL> --project <名前> [--out <ファイル>] [--site <URL>]';
+const KNOWN = ['endpoint', 'project', 'out', 'site'];
 const args = {};
 const argv = process.argv.slice(2);
 for (let i = 0; i < argv.length; i++) {
@@ -42,7 +42,8 @@ if (process.env.PIN_NOTES_AUTH) {
   headers.Authorization = `Basic ${Buffer.from(process.env.PIN_NOTES_AUTH).toString('base64')}`;
 }
 
-const res = await fetch(`${endpoint}?project=${encodeURIComponent(project)}`, { headers });
+// WordPress の admin-ajax.php?action=pin_notes のように、URL にすでに ? があれば & でつなぐ
+const res = await fetch(`${endpoint}${endpoint.includes('?') ? '&' : '?'}project=${encodeURIComponent(project)}`, { headers });
 if (!res.ok) {
   console.error(`取得できませんでした: ${res.status} ${res.statusText}`);
   process.exit(1);
@@ -71,7 +72,9 @@ const STATUS = [
   ['完了', (n) => n.status === 'done'],
 ];
 const ANONYMOUS = 'ななしさん';
-const site = new URL(endpoint).origin;
+// ページへのリンクに使うサイトの URL。省くと API と同じ場所にする
+// WordPress で管理画面と表のサイトのホストが違うときは、--site に表のサイトを渡す
+const site = new URL(args.site || endpoint).origin;
 // UI と同じく、実行環境の時刻で日付を書く。UTC のまま切ると日本時間の朝に日付がずれる
 const pad = (n) => String(n).padStart(2, '0');
 const day = (value) => {
