@@ -16,6 +16,43 @@
  * data-pin-notes-ignore 属性を付けた要素の中では、メモを置くクリックを横取りしない。
  * 表示中は html に --pin-notes-offset を設定する。値は画面下端からバーや一覧の上端までの高さで、余白は含まない。
  * 左下に置くほかの部品は、この値に余白を足した分だけ上に逃げれば重ならない。
+ * 色と角丸は、html などに CSS 変数 --pin-notes-primary などを書くと上書きできる。一覧は injectStyle() にある。
+ *
+ * MIT License. https://github.com/hgw/pin-notes
+ *
+ * アイコンは Lucide v1.76.0 の SVG を使っている。https://lucide.dev
+ * plus、x、trash-2、check は Feather 由来で MIT License、ほかは ISC License。
+ *
+ * ISC License
+ * Copyright (c) 2026 Lucide Icons and Contributors
+ * Permission to use, copy, modify, and/or distribute this software for any
+ * purpose with or without fee is hereby granted, provided that the above
+ * copyright notice and this permission notice appear in all copies.
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+ * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ *
+ * The MIT License (MIT) (for the icons derived from Feather)
+ * Copyright (c) 2013-present Cole Bemis
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
  */
 (function () {
   'use strict';
@@ -28,10 +65,11 @@
     defaultOn: !!(script && script.dataset.default === 'on'),
   };
 
+  // 状態の色は CSS の [data-status] で付ける。色だけに頼らないよう、未対応以外はピンにアイコンも出す
   var STATUS = [
-    { key: 'open', label: '未対応', color: '#e0662f' },
-    { key: 'decided', label: '決定', color: '#2a6fdb' },
-    { key: 'done', label: '対応済み', color: '#8a8a8a' },
+    { key: 'open', label: '未対応', icon: null },
+    { key: 'decided', label: '決定', icon: 'check' },
+    { key: 'done', label: '対応済み', icon: 'check-check' },
   ];
   // key で探し、見つからなければ最初の要素を返す。状態と種類で共通に使う
   var byKey = function (list, key) {
@@ -41,16 +79,28 @@
 
   // メモの種類。ピンにアイコンで出す。「メモ」はふつうのメモで、アイコンは出さない
   // 種類のキーと重要度の上限は api.php と export.mjs にも同じ値がある。変えるときは3か所をそろえる
-  // アイコンは固定の SVG 文字列。外部の素材に頼らず、このファイルだけで配れるようにする
-  var svg = function (body) {
-    return '<svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true" fill="currentColor">' + body + '</svg>';
+  // アイコンは Lucide の SVG を、使う分だけ埋め込む。外部の素材を読み込まず、このファイルだけで配れるようにする
+  // 大きさは CSS で決める
+  var ICONS = {
+    'plus': '<path d="M5 12h14"/><path d="M12 5v14"/>',
+    'x': '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+    'list': '<path d="M3 5h.01"/><path d="M3 12h.01"/><path d="M3 19h.01"/><path d="M8 5h13"/><path d="M8 12h13"/><path d="M8 19h13"/>',
+    'pencil': '<path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/>',
+    'trash-2': '<path d="M10 11v6"/><path d="M14 11v6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
+    'check': '<path d="M20 6 9 17l-5-5"/>',
+    'check-check': '<path d="M18 6 7 17l-5-5"/><path d="m22 10-7.5 7.5L13 16"/>',
+    'sticky-note': '<path d="M21 9a2.4 2.4 0 0 0-.706-1.706l-3.588-3.588A2.4 2.4 0 0 0 15 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2z"/><path d="M15 3v5a1 1 0 0 0 1 1h5"/>',
+    'lightbulb': '<path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/>',
+    'wrench': '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.106-3.105c.32-.322.863-.22.983.218a6 6 0 0 1-8.259 7.057l-7.91 7.91a1 1 0 0 1-2.999-3l7.91-7.91a6 6 0 0 1 7.057-8.259c.438.12.54.662.219.984z"/>',
+    'circle-help': '<circle cx="12" cy="12" r="10"/><path d="M9 9.5a3 2.5 0 016 0c0 2-2 2-3 3.5"/><path d="M12 17h.01"/>',
+    'heart': '<path d="M2 9.5a5.5 5.5 0 0 1 9.591-3.676.56.56 0 0 0 .818 0A5.49 5.49 0 0 1 22 9.5c0 2.29-1.5 4-3 5.5l-5.492 5.313a2 2 0 0 1-3 .019L5 15c-1.5-1.5-3-3.2-3-5.5"/>',
   };
   var KINDS = [
-    { key: 'memo', label: 'メモ', icon: svg('<path d="M5 4h14v12l-4 4H5z" opacity=".9"/>') },
-    { key: 'idea', label: 'アイデア', icon: svg('<path d="M12 2l2.9 6.6 7.1.6-5.4 4.7 1.6 7.1L12 17.3 5.8 21l1.6-7.1L2 9.2l7.1-.6z"/>') },
-    { key: 'fix', label: '修正', icon: svg('<path d="M9 4.5a3 3 0 0 1 6 0V6H9zM5 9h14v1.5h-2.5V13H19v1.5h-2.6A4.5 4.5 0 0 1 13 18.8V11h-2v7.8a4.5 4.5 0 0 1-3.4-4.3H5V13h2.5v-2.5H5z"/>') },
-    { key: 'info', label: '質問・情報', icon: svg('<path d="M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20zm-1.3 8v8h2.6v-8zm1.3-4.5a1.6 1.6 0 1 0 0 3.2 1.6 1.6 0 0 0 0-3.2z"/>') },
-    { key: 'like', label: 'いいね', icon: svg('<path d="M12 21s-7.5-4.6-9.6-9.2C.9 8.4 3 5 6.4 5c2 0 3.5 1.1 4.6 2.6C12.1 6.1 13.6 5 15.6 5 19 5 21.1 8.4 19.6 11.8 17.5 16.4 12 21 12 21z"/>') },
+    { key: 'memo', label: 'メモ', icon: 'sticky-note' },
+    { key: 'idea', label: 'アイデア', icon: 'lightbulb' },
+    { key: 'fix', label: '修正', icon: 'wrench' },
+    { key: 'info', label: '質問・情報', icon: 'circle-help' },
+    { key: 'like', label: 'いいね', icon: 'heart' },
   ];
   var kindOf = function (key) { return byKey(KINDS, key); };
   var isMemo = function (kind) { return kind.key === 'memo'; };
@@ -65,17 +115,25 @@
     return Math.min(MAX_IMPORTANCE, Math.max(0, Math.trunc(n)));
   };
   var stars = function (n) { return n > 0 ? '★'.repeat(n) : ''; };
+  // 星は記号なので、読み上げでは「重要度 2」のように読ませる
+  var starsEl = function (n) {
+    return h('span', { class: 'pn-stars', role: 'img', 'aria-label': '重要度 ' + n, text: stars(n) });
+  };
   // 固定の SVG 文字列からアイコン要素を作る。利用者の入力は入らない
-  // 解釈は種類ごとに1回だけにし、あとは複製して使う
+  // 解釈はアイコンごとに1回だけにし、あとは複製して使う。読み上げでは無視させる
   var iconCache = {};
-  var iconEl = function (kind) {
-    if (!iconCache[kind.key]) {
+  var iconEl = function (name) {
+    if (!iconCache[name]) {
       var span = document.createElement('span');
       span.className = 'pn-icon';
-      span.innerHTML = kind.icon;
-      iconCache[kind.key] = span;
+      span.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">' + ICONS[name] + '</svg>';
+      iconCache[name] = span;
     }
-    return iconCache[kind.key].cloneNode(true);
+    return iconCache[name].cloneNode(true);
+  };
+  // アイコンと文字を並べたボタンの中身
+  var label = function (icon, text) {
+    return [iconEl(icon), h('span', { text: text })];
   };
 
   var ls = {
@@ -304,50 +362,86 @@
   }
 
   function injectStyle() {
+    // 色と角丸。導入先は --pin-notes-* で上書きできる。初期値は WCAG 2.2 AA を満たす
+    // 文字は背景に対して 4.5:1 以上、入力欄の枠とフォーカスリングは 3:1 以上。変えるときもこの比を保つ
+    var vars = [
+      ['fg', '#09090b'], ['muted', '#52525b'], ['bg', '#fff'], ['subtle', '#f4f4f5'], ['subtle-hover', '#e4e4e7'],
+      ['border', '#e4e4e7'], ['input', '#71717a'], ['primary', '#18181b'], ['primary-fg', '#fafafa'], ['ring', '#18181b'],
+      ['danger', '#b91c1c'], ['open', '#c2410c'], ['decided', '#1d4ed8'], ['done', '#52525b'], ['star', '#b45309'], ['radius', '8px'],
+    ].map(function (v) { return '--pn-' + v[0] + ':var(--pin-notes-' + v[0] + ',' + v[1] + ')'; }).join(';');
     var css = [
-      '[data-pin-notes]{font:12px/1.5 system-ui,sans-serif;letter-spacing:0;color:#111}',
+      '[data-pin-notes]{' + vars + ';font:13px/1.5 system-ui,sans-serif;letter-spacing:0;text-transform:none;color:var(--pn-fg);box-sizing:border-box}',
+      '[data-pin-notes] *,[data-pin-notes] *::before,[data-pin-notes] *::after{box-sizing:border-box}',
       // display を指定した要素でも hidden 属性で隠れるようにする。指定すると UA の display:none より優先されるため
       '[data-pin-notes][hidden],[data-pin-notes] [hidden]{display:none!important}',
+      // ピンのフォーカスリングは白の縁を挟み、どの背景でも見えるようにする
+      '[data-pin-notes] :focus-visible,.pn-pin:focus-visible{outline:2px solid var(--pn-ring);outline-offset:2px}',
+      '.pn-pin:focus-visible{outline:none;box-shadow:0 0 0 2px #fff,0 0 0 4px var(--pn-ring)}',
+      '.pn-icon{display:inline-flex;flex:none;line-height:0}',
+      '.pn-icon svg{width:16px;height:16px}',
       '.pn-layer{position:absolute;left:0;top:0;width:0;height:0;z-index:2147483000}',
-      '.pn-pin{position:absolute;display:inline-flex;align-items:center;justify-content:center;gap:2px;min-width:24px;height:24px;margin:-24px 0 0 -2px;box-sizing:border-box;border:2px solid #fff;border-radius:12px 12px 12px 2px;color:#fff;font:700 11px/1 system-ui,sans-serif;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.35);padding:0 5px;touch-action:none;white-space:nowrap}',
-      '.pn-icon{display:inline-flex;line-height:0}',
-      '.pn-kind{display:inline-flex;align-items:center;gap:4px;margin-right:6px;color:#333}',
-      '.pn-stars{color:#d29a00;letter-spacing:1px}',
-      '.pn-seg{display:flex;flex-wrap:wrap;gap:4px;margin:4px 0}',
-      '.pn-seg button{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border:1px solid #bbb;background:#fff;color:#333;font:inherit;cursor:pointer}',
-      '.pn-seg button[aria-pressed="true"]{border-color:#222;background:#222;color:#fff}',
-      '.pn-label{margin-top:6px;color:#666;font-size:11px}',
-      '.pn-pin.is-lost{opacity:.6;outline:2px dashed #e0662f}',
+      // ピンは押せる大きさの基準に合わせて 24px 以上にする
+      '.pn-pin{position:absolute;display:inline-flex;align-items:center;justify-content:center;gap:2px;min-width:24px;height:24px;margin:-24px 0 0 -2px;padding:0 6px;border:2px solid #fff;border-radius:12px 12px 12px 3px;color:#fff;font:600 12px/1 system-ui,sans-serif;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.4);touch-action:none;white-space:nowrap}',
+      '.pn-pin .pn-icon svg{width:12px;height:12px;stroke-width:2.5}',
+      STATUS.map(function (x) { var a = '[data-status="' + x.key + '"]'; return '[data-pin-notes] ' + a + ',[data-pin-notes]' + a + '{--pn-c:var(--pn-' + x.key + ')}'; }).join(''),
+      '.pn-pin,.pn-tag{background:var(--pn-c)}',
+      '.pn-area{background:color-mix(in srgb,var(--pn-c) 10%,transparent)}',
+      '.pn-pin.is-lost{opacity:.7;outline:2px dashed var(--pn-open);outline-offset:1px}',
       '.pn-pin.is-dragging{cursor:grabbing;opacity:.85}',
-      '.pn-area{position:absolute;box-sizing:border-box;border:2px solid;pointer-events:none}',
+      '.pn-area{position:absolute;border:2px solid var(--pn-c);border-radius:4px;pointer-events:none}',
       '.pn-area.is-lost{border-style:dashed;opacity:.6}',
-      '.pn-draft{position:fixed;z-index:2147483000;box-sizing:border-box;border:2px dashed #222;background:rgba(0,0,0,.06);pointer-events:none}',
+      '.pn-draft{position:fixed;z-index:2147483000;border:2px dashed var(--pn-primary);border-radius:4px;background:rgba(24,24,27,.06);pointer-events:none}',
       'html.pn-placing{touch-action:none;user-select:none}',
-      '.pn-bar{position:fixed;left:12px;bottom:12px;z-index:2147483001;display:flex;gap:6px;align-items:center;padding:6px 8px;border:1px solid #222;background:#fff;box-shadow:0 4px 16px rgba(0,0,0,.15)}',
-      '.pn-btn{padding:3px 10px;border:1px solid #222;background:#fff;color:#111;font:inherit;cursor:pointer}',
-      '.pn-btn.is-on,.pn-btn--primary{background:#222;color:#fff}',
-      '.pn-btn--danger{border-color:#b3261e;color:#b3261e}',
-      '.pn-hint{color:#555}',
-      '.pn-check{display:inline-flex;align-items:center;gap:4px;cursor:pointer;white-space:nowrap}',
-      '.pn-error{margin:4px 0 0;color:#b3261e}',
-      '.pn-error:empty{display:none}',
-      '.pn-btn:disabled{opacity:.5;cursor:default}',
-      '.pn-notice{padding:1px 6px;background:#fff4d6;color:#7a4b00;border:1px solid #e5c27a}',
       'html.pn-placing,html.pn-placing *{cursor:crosshair!important}',
       'html.pn-placing [data-pin-notes],html.pn-placing [data-pin-notes] *,html.pn-placing [data-pin-notes-ignore],html.pn-placing [data-pin-notes-ignore] *{cursor:auto!important}',
       'html.pn-placing [data-pin-notes] button,html.pn-placing [data-pin-notes-ignore] button,html.pn-placing [data-pin-notes-ignore] a{cursor:pointer!important}',
-      '.pn-pop{position:absolute;z-index:2147483002;width:280px;padding:10px;border:1px solid #222;background:#fff;box-shadow:0 6px 20px rgba(0,0,0,.2)}',
-      '.pn-pop textarea,.pn-pop input,.pn-pop select{width:100%;box-sizing:border-box;margin:4px 0;padding:4px 6px;border:1px solid #bbb;font:inherit}',
-      '.pn-pop textarea{min-height:80px;resize:vertical}',
-      '.pn-meta{color:#666;font-size:11px}',
-      '.pn-body{white-space:pre-wrap;margin:6px 0}',
-      '.pn-row{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;align-items:center}',
-      '.pn-list{position:fixed;left:12px;bottom:56px;z-index:2147483001;width:320px;max-height:60vh;overflow:auto;border:1px solid #222;background:#fff;box-shadow:0 4px 16px rgba(0,0,0,.15)}',
+      // 浮いている面の枠は飾りなので薄くてよい
+      '.pn-bar,.pn-pop,.pn-list{border:1px solid var(--pn-border);border-radius:var(--pn-radius);background:var(--pn-bg);box-shadow:0 8px 16px rgba(0,0,0,.12)}',
+      '.pn-bar{position:fixed;left:12px;bottom:12px;z-index:2147483001;display:flex;flex-wrap:wrap;gap:6px;align-items:center;max-width:calc(100vw - 24px);padding:6px}',
+      // ボタンは文字で分かるので、枠のコントラストには頼らない
+      '.pn-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:32px;padding:0 12px;border:1px solid transparent;border-radius:calc(var(--pn-radius) - 2px);background:var(--pn-subtle);color:var(--pn-fg);font:inherit;font-weight:500;line-height:1;cursor:pointer;white-space:nowrap}',
+      '.pn-btn:hover{background:var(--pn-subtle-hover)}',
+      '.pn-btn.is-on,.pn-btn--primary{background:var(--pn-primary);color:var(--pn-primary-fg)}',
+      '.pn-btn.is-on:hover,.pn-btn--primary:hover{background:color-mix(in srgb,var(--pn-primary) 88%,#fff)}',
+      '.pn-btn--danger{background:var(--pn-bg);border-color:var(--pn-danger);color:var(--pn-danger)}',
+      '.pn-btn--danger:hover{background:color-mix(in srgb,var(--pn-danger) 8%,#fff)}',
+      '.pn-btn:disabled{opacity:.5;cursor:default}',
+      '.pn-hint{color:var(--pn-muted)}',
+      '.pn-hint:empty{display:none}',
+      '.pn-check{display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:0 6px;cursor:pointer;white-space:nowrap}',
+      '.pn-check input{width:16px;height:16px;margin:0;accent-color:var(--pn-primary)}',
+      '.pn-notice{padding:4px 8px;border:1px solid #fcd34d;border-radius:calc(var(--pn-radius) - 2px);background:#fffbeb;color:#92400e}',
+      '.pn-error{margin:8px 0 0;color:var(--pn-danger)}',
+      '.pn-error:empty{display:none}',
+      '.pn-pop{position:absolute;z-index:2147483002;width:300px;max-width:calc(100vw - 16px);padding:14px}',
+      '.pn-pop:focus{outline:none}',
+      '.pn-pop textarea,.pn-pop input[type="text"],.pn-pop select{display:block;width:100%;min-height:32px;margin:6px 0;padding:6px 8px;border:1px solid var(--pn-input);border-radius:calc(var(--pn-radius) - 2px);background:var(--pn-bg);color:var(--pn-fg);font:inherit}',
+      '.pn-pop textarea{min-height:88px;resize:vertical}',
+      '.pn-title{margin:0 0 4px;font-weight:600;font-size:14px}',
+      '.pn-label{margin-top:10px;color:var(--pn-muted);font-size:12px;font-weight:500}',
+      '.pn-seg{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0}',
+      // 選択中は塗りで示す。未選択との差は 3:1 以上
+      '.pn-seg button{display:inline-flex;align-items:center;gap:4px;min-height:28px;padding:0 8px;border:0;border-radius:calc(var(--pn-radius) - 2px);background:var(--pn-subtle);color:var(--pn-fg);font:inherit;font-size:12px;cursor:pointer}',
+      '.pn-seg button:hover{background:var(--pn-subtle-hover)}',
+      '.pn-seg button[aria-pressed="true"]{background:var(--pn-primary);color:var(--pn-primary-fg)}',
+      '.pn-seg .pn-icon svg{width:14px;height:14px}',
+      '.pn-kind{display:inline-flex;align-items:center;gap:4px;margin-right:8px}',
+      '.pn-stars{color:var(--pn-star);letter-spacing:1px}',
+      '.pn-seg button[aria-pressed="true"] .pn-stars{color:inherit}',
+      '.pn-meta{color:var(--pn-muted);font-size:12px}',
+      '.pn-body{margin:10px 0;white-space:pre-wrap;overflow-wrap:anywhere}',
+      '.pn-row{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:10px}',
+      '.pn-head{display:flex;flex-wrap:wrap;align-items:center;gap:4px}',
+      '.pn-line{display:block;margin-top:2px}',
+      '.pn-tag{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:999px;color:#fff;font-size:12px;font-weight:500;margin-right:6px}',
+      '.pn-tag .pn-icon svg{width:12px;height:12px;stroke-width:2.5}',
+      '.pn-list{position:fixed;left:12px;bottom:64px;z-index:2147483001;width:340px;max-width:calc(100vw - 24px);max-height:60vh;overflow:auto;padding:4px}',
       '.pn-list ol{margin:0;padding:0;list-style:none}',
-      '.pn-list li{padding:8px 10px;border-bottom:1px solid #eee;cursor:pointer}',
-      '.pn-list li:hover{background:#f6f6f6}',
-      '.pn-tag{display:inline-block;padding:0 6px;color:#fff;font-size:11px;margin-right:4px}',
-      '.pn-launch{position:fixed;left:12px;bottom:12px;z-index:2147483001}',
+      '.pn-list li+li{border-top:1px solid var(--pn-border)}',
+      '.pn-item{display:block;width:100%;padding:8px;border:0;border-radius:calc(var(--pn-radius) - 2px);background:none;color:inherit;font:inherit;text-align:left;cursor:pointer}',
+      '.pn-item:hover{background:var(--pn-subtle)}',
+      '.pn-empty{margin:0;padding:10px;color:var(--pn-muted)}',
+      '.pn-launch{position:fixed;left:12px;bottom:12px;z-index:2147483001;box-shadow:0 4px 8px rgba(0,0,0,.15)}',
     ].join('\n');
     document.head.appendChild(h('style', { 'data-pin-notes-style': '' }, [document.createTextNode(css)]));
   }
@@ -357,8 +451,8 @@
     layer = h('div', { class: 'pn-layer', 'data-pin-notes': '' });
     document.body.appendChild(layer);
 
-    var addBtn = h('button', { type: 'button', class: 'pn-btn pn-btn--primary', text: '＋ メモを追加', onclick: function () { setPlacing(!state.placing); } });
-    var listBtn = h('button', { type: 'button', class: 'pn-btn', text: '一覧', onclick: toggleList });
+    var addBtn = h('button', { type: 'button', class: 'pn-btn pn-btn--primary', onclick: function () { setPlacing(!state.placing); } }, label('plus', 'メモを追加'));
+    var listBtn = h('button', { type: 'button', class: 'pn-btn', 'aria-expanded': 'false', onclick: toggleList }, label('list', '一覧'));
     // 対応済みのメモは、チェックを入れたときだけ表示する。選んだ状態はブラウザに保存する
     state.showDone = ls.get(KEY + 'showDone') === '1';
     var showDoneBox = h('input', { type: 'checkbox' });
@@ -370,18 +464,20 @@
       renderPins();
     });
     var showDoneLabel = h('label', { class: 'pn-check' }, [showDoneBox, document.createTextNode('対応済みも表示')]);
-    var closeBtn = h('button', { type: 'button', class: 'pn-btn', text: '閉じる', 'aria-label': 'メモを閉じる', onclick: function () { api.disable(); } });
-    var hint = h('span', { class: 'pn-hint', 'data-pn-hint': '' });
-    var notice = h('span', { class: 'pn-notice', 'data-pn-notice': '', hidden: '' });
-    bar = h('div', { class: 'pn-bar', 'data-pin-notes': '', hidden: '' }, [addBtn, listBtn, showDoneLabel, hint, notice, closeBtn]);
+    var closeBtn = h('button', { type: 'button', class: 'pn-btn', 'aria-label': 'メモを閉じる', onclick: function () { api.disable(); } }, label('x', '閉じる'));
+    // 案内とエラーは、変わったときに読み上げられるようにする
+    var hint = h('span', { class: 'pn-hint', 'data-pn-hint': '', role: 'status' });
+    var notice = h('span', { class: 'pn-notice', 'data-pn-notice': '', role: 'status', hidden: '' });
+    bar = h('div', { class: 'pn-bar', 'data-pin-notes': '', role: 'region', 'aria-label': 'メモ', hidden: '' }, [addBtn, listBtn, showDoneLabel, hint, notice, closeBtn]);
     bar.addBtn = addBtn;
+    bar.listBtn = listBtn;
     bar.hint = hint;
     bar.notice = notice;
     if (pendingNotice) setNotice(pendingNotice);
     document.body.appendChild(bar);
 
     if (config.ui !== 'none') {
-      launcher = h('button', { type: 'button', class: 'pn-btn pn-launch', 'data-pin-notes': '', text: 'メモ', onclick: function () { api.toggle(); } });
+      launcher = h('button', { type: 'button', class: 'pn-btn pn-launch', 'data-pin-notes': '', onclick: function () { api.toggle(); } }, label('sticky-note', 'メモ'));
       document.body.appendChild(launcher);
     }
 
@@ -423,7 +519,8 @@
     state.placing = on;
     document.documentElement.classList.toggle('pn-placing', on);
     bar.addBtn.classList.toggle('is-on', on);
-    bar.addBtn.textContent = on ? 'やめる' : '＋ メモを追加';
+    bar.addBtn.textContent = '';
+    label(on ? 'x' : 'plus', on ? 'やめる' : 'メモを追加').forEach(function (el) { bar.addBtn.appendChild(el); });
     bar.hint.textContent = on ? 'クリックで点、ドラッグで範囲を指示' : '';
   }
 
@@ -537,14 +634,15 @@
       var num = item.num;
       var el = findAnchor(note);
       var pos = positionOf(note, el);
-      var color = statusOf(note.status).color;
+      var st = statusOf(note.status);
       var kind = kindOf(note.kind);
       var imp = importanceOf(note);
       var pin = h('button', {
         type: 'button',
         class: 'pn-pin' + (pos.lost ? ' is-lost' : ''),
         title: (pos.lost ? '（元の要素が見つからない）' : '') + note.body,
-        'aria-label': 'メモ ' + num + (isMemo(kind) ? '' : '、' + kind.label) + (isArea(note) ? '、範囲' : '') + (imp ? '、重要度 ' + imp : ''),
+        'aria-label': 'メモ ' + num + '、' + st.label + (isMemo(kind) ? '' : '、' + kind.label) + (isArea(note) ? '、範囲' : '') + (imp ? '、重要度 ' + imp : ''),
+        'data-status': st.key,
         text: String(num),
         onclick: function (e) {
           e.stopPropagation();
@@ -554,15 +652,14 @@
         },
       });
       // 「メモ」以外の種類は、番号の前にアイコンを出す
-      if (!isMemo(kind)) pin.insertBefore(iconEl(kind), pin.firstChild);
+      // 状態のアイコンは番号の後ろに出す。色だけで状態を伝えないため
+      if (!isMemo(kind)) pin.insertBefore(iconEl(kind.icon), pin.firstChild);
+      if (st.icon) pin.appendChild(iconEl(st.icon));
       pin.note = note;
       pin.anchorEl = el;
-      pin.style.background = color;
       if (isArea(note)) {
         // 範囲の枠。ページの操作を妨げないよう、枠そのものはクリックを受けない
-        pin.areaEl = h('div', { class: 'pn-area', 'data-pin-notes': '' });
-        pin.areaEl.style.borderColor = color;
-        pin.areaEl.style.background = color + '1a';
+        pin.areaEl = h('div', { class: 'pn-area', 'data-pin-notes': '', 'data-status': st.key });
         layer.appendChild(pin.areaEl);
       }
       pin.addEventListener('pointerdown', function (e) { startPinDrag(e, pin); });
@@ -687,11 +784,40 @@
   }
 
   // 吹き出しを必ず閉じる。保存やキャンセルのボタンなど、閉じてよいと決まっているときに使う
+  // フォーカスが吹き出しの中にあったときだけ、開く前の場所に戻す。外側をクリックして閉じたときは、押した場所を優先する
   function closePopover() {
-    if (popover) popover.remove();
+    var back = null;
+    if (popover) {
+      // 保存中にボタンを無効にすると、フォーカスは body に外れる。そのときも戻す
+      var active = document.activeElement;
+      if (!active || active === document.body || popover.contains(active)) back = popover.returnTo;
+      popover.remove();
+    }
     popover = null;
     state.openId = null;
+    if (back) restoreFocus(back);
   }
+
+  // 戻り先は要素か、メモの id。ピンは描き直すと別の要素になるので、id から探し直す
+  function restoreFocus(back) {
+    var el = typeof back === 'string' ? pinFor(back) : back;
+    if (el && el.isConnected && typeof el.focus === 'function') el.focus();
+  }
+
+  function pinFor(id) {
+    if (!layer) return null;
+    return Array.prototype.filter.call(layer.children, function (p) { return p.note && p.note.id === id; })[0] || null;
+  }
+
+  // 吹き出しを dialog として出す。開く前にフォーカスがあった場所を、閉じたときの戻り先にする
+  function showPopover(children, title, returnTo) {
+    var titleId = 'pn-title-' + (++popoverSeq);
+    popover = h('div', { class: 'pn-pop', 'data-pin-notes': '', role: 'dialog', 'aria-labelledby': titleId, tabindex: '-1' },
+      [h('h2', { class: 'pn-title', id: titleId, text: title })].concat(children));
+    popover.returnTo = returnTo || (document.activeElement !== document.body ? document.activeElement : null);
+    document.body.appendChild(popover);
+  }
+  var popoverSeq = 0;
 
   // 吹き出しを閉じてよければ閉じる。書きかけの内容があるときは閉じずに false を返し、編集欄に案内を出す
   // 外側のクリック、Esc、ピンのドラッグ、別のピンやメモを開く操作はすべてこれを通す
@@ -707,9 +833,9 @@
 
   function openEditor(note, anchor) {
     if (!requestClosePopover()) return;
-    var body = h('textarea', { placeholder: '決まったこと、直したいこと' });
+    var body = h('textarea', { placeholder: '決まったこと、直したいこと', 'aria-label': '本文' });
     body.value = note ? note.body : '';
-    var author = h('input', { type: 'text', placeholder: '名前', value: (note && note.author) || ls.get('pin-notes:author') || '' });
+    var author = h('input', { type: 'text', placeholder: '名前', 'aria-label': '名前', autocomplete: 'name', value: (note && note.author) || ls.get('pin-notes:author') || '' });
     var status = h('select', { 'aria-label': '状態' }, STATUS.map(function (s) {
       var o = h('option', { value: s.key, text: s.label });
       if ((note ? note.status : 'open') === s.key) o.selected = true;
@@ -721,8 +847,9 @@
       group.value = current;
       options.forEach(function (o) {
         var btn = h('button', { type: 'button', 'aria-pressed': String(o.value === current), title: o.title || '' });
+        if (o.label) btn.setAttribute('aria-label', o.label);
         if (o.icon) btn.appendChild(iconEl(o.icon));
-        btn.appendChild(document.createTextNode(o.text));
+        btn.appendChild(o.el || document.createTextNode(o.text));
         btn.addEventListener('click', function () {
           group.value = o.value;
           Array.prototype.forEach.call(group.children, function (b) { b.setAttribute('aria-pressed', String(b === btn)); });
@@ -731,9 +858,10 @@
       });
       return group;
     };
-    var kind = segment('種類', KINDS.map(function (k) { return { value: k.key, text: k.label, icon: k }; }), kindOf(note && note.kind).key);
+    var kind = segment('種類', KINDS.map(function (k) { return { value: k.key, text: k.label, icon: k.icon }; }), kindOf(note && note.kind).key);
     var importance = segment('重要度', [0, 1, 2, 3].map(function (n) {
-      return { value: n, text: n ? stars(n) : 'なし', title: n ? '重要度 ' + n : '重要度の指定なし' };
+      // 星だけのボタンは、読み上げで「重要度 2」と読ませる
+      return { value: n, text: n ? stars(n) : 'なし', label: n ? '重要度 ' + n : '重要度の指定なし', title: n ? '重要度 ' + n : '重要度の指定なし' };
     }), importanceOf(note));
     var save = h('button', {
       type: 'button', class: 'pn-btn pn-btn--primary', text: '保存', title: '⌘ / Ctrl + Enter でも保存できる',
@@ -749,7 +877,10 @@
         var p = note
           ? store.update(note.id, fields)
           : store.create(Object.assign({ page: pagePath(), title: document.title }, anchor, fields));
-        p.then(refresh).then(closePopover).catch(function (err) {
+        p.then(function (saved) {
+          if (!note && saved && saved.id) popover.returnTo = saved.id;
+          return refresh();
+        }).then(closePopover).catch(function (err) {
           // 書いた文章を失わないよう、吹き出しは閉じずに再送できる状態に戻す
           save.disabled = false;
           save.textContent = '保存';
@@ -759,6 +890,8 @@
       },
     });
     var cancel = h('button', { type: 'button', class: 'pn-btn', text: 'キャンセル', onclick: closePopover });
+    // 新しいメモは、保存したらそのピンに、やめたら開く前の場所にフォーカスを戻す
+    var returnTo = note ? note.id : null;
     var error = h('p', { class: 'pn-error', role: 'alert' });
     // ⌘ / Ctrl + Enter で保存する。日本語の変換中の Enter は無視する
     var saveByKey = function (e) {
@@ -772,8 +905,7 @@
     var initialStatus = status.value;
     var initialKind = kind.value;
     var initialImportance = importance.value;
-    popover = h('div', { class: 'pn-pop', 'data-pin-notes': '' }, [
-      h('div', { class: 'pn-meta', text: note ? 'メモを編集' : '新しいメモ' }),
+    showPopover([
       h('div', { class: 'pn-label', text: '種類' }),
       kind,
       body, author,
@@ -783,7 +915,7 @@
       status,
       error,
       h('div', { class: 'pn-row' }, [save, cancel]),
-    ]);
+    ], note ? 'メモを編集' : '新しいメモ', returnTo);
     // 書きかけの内容があるかどうか。本文、名前、状態、種類、重要度のどれかが開いたときから変わっていれば書きかけとする
     popover.isDirty = function () {
       return body.value !== initialBody || author.value !== initialAuthor || status.value !== initialStatus ||
@@ -796,14 +928,13 @@
     // 吹き出しのどこにフォーカスがあっても ⌘ / Ctrl + Enter で保存する。種類や重要度のボタンを押したあとでも効くように、
     // 捕捉段階で受け取り、ボタンの Enter による選択より先に処理する
     popover.addEventListener('keydown', saveByKey, true);
-    document.body.appendChild(popover);
     popover.target = note || anchor;
     popover.targetEl = findAnchor(popover.target);
     movePopover();
     body.focus();
   }
 
-  function openViewer(note) {
+  function openViewer(note, returnTo) {
     if (!requestClosePopover()) return;
     state.openId = note.id;
     var s = statusOf(note.status);
@@ -816,44 +947,56 @@
       statusSel.disabled = true;
       store.update(note.id, { status: statusSel.value }).then(refresh).then(closePopover).catch(saveFailed);
     });
-    var edit = h('button', { type: 'button', class: 'pn-btn', text: '編集', onclick: function () { openEditor(note); } });
+    var edit = h('button', { type: 'button', class: 'pn-btn', onclick: function () { openEditor(note); } }, label('pencil', '編集'));
     var del = h('button', {
-      type: 'button', class: 'pn-btn pn-btn--danger', text: '削除',
+      type: 'button', class: 'pn-btn pn-btn--danger',
       onclick: function () {
-        if (del.dataset.confirm !== '1') { del.dataset.confirm = '1'; del.textContent = 'もう一度押すと削除'; return; }
+        if (del.dataset.confirm !== '1') { del.dataset.confirm = '1'; del.lastChild.textContent = 'もう一度押すと削除'; return; }
         if (del.disabled) return;
         del.disabled = true;
         store.remove(note.id).then(refresh).then(closePopover).catch(saveFailed);
       },
-    });
-    var close = h('button', { type: 'button', class: 'pn-btn', text: '閉じる', onclick: closePopover });
+    }, label('trash-2', '削除'));
+    var close = h('button', { type: 'button', class: 'pn-btn', onclick: closePopover }, label('x', '閉じる'));
     var k = kindOf(note.kind);
-    var kindLabel = h('span', { class: 'pn-kind' }, [iconEl(k), document.createTextNode(k.label)]);
+    var kindLabel = h('span', { class: 'pn-kind' }, [iconEl(k.icon), document.createTextNode(k.label)]);
     var imp = importanceOf(note);
-    popover = h('div', { class: 'pn-pop', 'data-pin-notes': '' }, [
-      h('div', {}, [
+    var num = sorted().map(function (n) { return n.id; }).indexOf(note.id) + 1;
+    showPopover([
+      h('div', { class: 'pn-head' }, [
         kindLabel,
-        h('span', { class: 'pn-tag', style: 'background:' + s.color, text: s.label }),
-        imp ? h('span', { class: 'pn-stars', text: stars(imp), title: '重要度 ' + imp }) : null,
+        statusTag(s),
+        imp ? starsEl(imp) : null,
       ]),
       h('p', { class: 'pn-body', text: note.body }),
       h('div', { class: 'pn-meta', text: (note.author || '名前なし') + '｜' + formatDate(note.updatedAt || note.createdAt) }),
       h('div', { class: 'pn-row' }, [statusSel]),
       h('div', { class: 'pn-row' }, [edit, del, close]),
-    ]);
-    document.body.appendChild(popover);
+    ], num > 0 ? 'メモ ' + num : 'メモ', returnTo || note.id);
     popover.target = note;
     popover.targetEl = findAnchor(note);
     movePopover();
+    // キーボードで開いたときに、読み上げとフォーカスが吹き出しに移るようにする
+    popover.focus({ preventScroll: true });
+  }
+
+  // 状態のラベル。色に加えて、未対応以外はアイコンも付ける
+  function statusTag(s, prefix) {
+    var tag = h('span', { class: 'pn-tag', 'data-status': s.key });
+    if (s.icon) tag.appendChild(iconEl(s.icon));
+    tag.appendChild(document.createTextNode((prefix || '') + s.label));
+    return tag;
   }
 
   function toggleList() {
     if (!listPanel) {
-      listPanel = h('div', { class: 'pn-list', 'data-pin-notes': '', hidden: '' });
+      listPanel = h('div', { class: 'pn-list', 'data-pin-notes': '', role: 'region', 'aria-label': 'メモの一覧', id: 'pn-list', hidden: '' });
+      bar.listBtn.setAttribute('aria-controls', 'pn-list');
       document.body.appendChild(listPanel);
       if (offsetObserver) offsetObserver.observe(listPanel);
     }
     listPanel.hidden = !listPanel.hidden;
+    bar.listBtn.setAttribute('aria-expanded', String(!listPanel.hidden));
     if (!listPanel.hidden) renderList();
     updateOffset();
   }
@@ -880,26 +1023,31 @@
     if (!items.length) {
       var hidden = state.notes.length - items.length;
       var text = hidden ? '対応済みのメモが ' + hidden + ' 件あります。「対応済みも表示」で見られます。' : 'このページのメモはまだありません。';
-      listPanel.appendChild(h('p', { style: 'margin:0;padding:10px', text: text }));
+      listPanel.appendChild(h('p', { class: 'pn-empty', text: text }));
       return;
     }
     listPanel.appendChild(h('ol', {}, items.map(function (item) {
       var n = item.note;
       var i = item.num - 1;
       var s = statusOf(n.status);
-      return h('li', {
+      // キーボードでも開けるように、項目の中身をボタンにする。ボタンの中に置けるのは span だけ
+      var item = h('button', {
+        type: 'button', class: 'pn-item',
         onclick: function () {
           var pos = positionOf(n);
           window.scrollTo({ top: Math.max(0, pos.y - 120), behavior: 'smooth' });
-          openViewer(n);
+          openViewer(n, item);
         },
       }, [
-        h('span', { class: 'pn-tag', style: 'background:' + s.color, text: (i + 1) + ' ' + s.label }),
-        isMemo(kindOf(n.kind)) ? null : h('span', { class: 'pn-kind', title: kindOf(n.kind).label }, [iconEl(kindOf(n.kind))]),
-        importanceOf(n) ? h('span', { class: 'pn-stars', text: stars(importanceOf(n)) + ' ' }) : null,
-        h('span', { text: n.body.length > 60 ? n.body.slice(0, 60) + '…' : n.body }),
-        h('div', { class: 'pn-meta', text: (n.author || '名前なし') + '｜' + formatDate(n.updatedAt || n.createdAt) }),
+        h('span', { class: 'pn-head' }, [
+          statusTag(s, (i + 1) + ' '),
+          isMemo(kindOf(n.kind)) ? null : h('span', { class: 'pn-kind' }, [iconEl(kindOf(n.kind).icon), h('span', { text: kindOf(n.kind).label })]),
+          importanceOf(n) ? starsEl(importanceOf(n)) : null,
+        ]),
+        h('span', { class: 'pn-line', text: n.body.length > 60 ? n.body.slice(0, 60) + '…' : n.body }),
+        h('span', { class: 'pn-meta pn-line', text: (n.author || '名前なし') + '｜' + formatDate(n.updatedAt || n.createdAt) }),
       ]);
+      return h('li', {}, [item]);
     })));
   }
 
@@ -979,6 +1127,7 @@
       setPlacing(false);
       closePopover(); // 非表示にするときは、書きかけでも閉じる
       if (listPanel) listPanel.hidden = true;
+      bar.listBtn.setAttribute('aria-expanded', 'false');
       bar.hidden = true;
       if (launcher) launcher.hidden = false;
       updateOffset();
