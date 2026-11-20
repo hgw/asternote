@@ -1,0 +1,25 @@
+{
+  "name": "pin-notes",
+  "version": "0.1.0",
+  "description": "プレビュー画面にピンと範囲でメモを残すツール",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hgw/pin-notes.git"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "bin": {
+    "pin-notes-copy": "copy.mjs",
+    "pin-notes-export": "export.mjs"
+  },
+  "files": [
+    "pin-notes.js",
+    "api.php",
+    "copy.mjs",
+    "export.mjs"
+  ]
+}
