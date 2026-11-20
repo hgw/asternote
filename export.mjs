@@ -42,7 +42,8 @@ if (process.env.PIN_NOTES_AUTH) {
   headers.Authorization = `Basic ${Buffer.from(process.env.PIN_NOTES_AUTH).toString('base64')}`;
 }
 
-const res = await fetch(`${endpoint}?project=${encodeURIComponent(project)}`, { headers });
+// WordPress の admin-ajax.php?action=pin_notes のように、URL にすでに ? があれば & でつなぐ
+const res = await fetch(`${endpoint}${endpoint.includes('?') ? '&' : '?'}project=${encodeURIComponent(project)}`, { headers });
 if (!res.ok) {
   console.error(`取得できませんでした: ${res.status} ${res.statusText}`);
   process.exit(1);

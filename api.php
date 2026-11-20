@@ -9,7 +9,9 @@
  *
  * 書き込みの制限は、サーバー側の Basic 認証などに任せる。
  * Basic 認証を通っていないリクエストは断る。かけ忘れたまま動き続けないようにするため。
- * 設定は同じディレクトリの pin-notes.config.php に書く。
+ * 直接開かれたときは、同じディレクトリの pin-notes.config.php の設定で動く。
+ * ほかの PHP から使うときは、定数 PIN_NOTES_LIBRARY を定義してから読み込み、\PinNotes\handle($config) を呼ぶ。
+ * WordPress のプラグインはこの方法で使う。関数と定数は名前空間 PinNotes に入れ、ほかのプラグインとぶつからないようにする。
  *   <?php return [
  *       'data_dir' => '/path/outside/docroot', // 必須。保存先。ドキュメントルートの外にする
  *       'projects' => ['myproject'],            // 必須。使える project 名の一覧
@@ -19,13 +21,7 @@
 
 declare(strict_types=1);
 
-// PHP の警告を応答に出さない。警告にはサーバーのパスが入り、JSON も壊れる。失敗は戻り値で判定する
-ini_set('display_errors', '0');
-ini_set('log_errors', '1');
-
-header('Content-Type: application/json; charset=utf-8');
-header('Cache-Control: no-store');
-header('X-Content-Type-Options: nosniff');
+namespace PinNotes;
 
 const STATUSES = ['open', 'decided', 'done'];
 // 種類のキーと重要度の上限は pin-notes.js と export.mjs にも同じ値がある。変えるときは3か所をそろえる
@@ -61,21 +57,23 @@ function respond(int $code, array $data): void
     exit;
 }
 
-function config(): array
+/** 設定。handle() が最初に渡して検証し、以降はそれを返す */
+function config(?array $set = null): array
 {
     static $config = null;
-    if ($config !== null) return $config;
-    $file = __DIR__ . '/pin-notes.config.php';
-    $loaded = is_file($file) ? require $file : [];
-    if (!is_array($loaded) || empty($loaded['data_dir']) || !is_string($loaded['data_dir'])) {
-        respond(500, ['error' => 'data_dir が設定されていません']);
+    if ($set !== null) {
+        if (empty($set['data_dir']) || !is_string($set['data_dir'])) {
+            respond(500, ['error' => 'data_dir が設定されていません']);
+        }
+        // project 名を限らないと、名前を変えながら保存ファイルを際限なく作れる。設定がない、または形が違えば止める
+        $projects = $set['projects'] ?? null;
+        if (!is_array($projects) || !$projects || array_filter($projects, 'is_string') !== $projects) {
+            respond(500, ['error' => 'projects を、project 名の配列で設定してください']);
+        }
+        $config = $set;
     }
-    // project 名を限らないと、名前を変えながら保存ファイルを際限なく作れる。設定がない、または形が違えば止める
-    $projects = $loaded['projects'] ?? null;
-    if (!is_array($projects) || !$projects || array_filter($projects, 'is_string') !== $projects) {
-        respond(500, ['error' => 'projects を、project 名の配列で設定してください']);
-    }
-    return $config = $loaded;
+    if ($config === null) respond(500, ['error' => '設定がありません']);
+    return $config;
 }
 
 /** $path が $dir と同じか、その中にあるか。どちらも実在するパスで比べる */
@@ -244,109 +242,132 @@ function with_notes(string $project, callable $fn, bool $write, bool $recover = 
     return $result['return'];
 }
 
-$method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+/**
+ * リクエストを1件処理して応答を返す。最後に必ず exit する。
+ * $config は pin-notes.config.php と同じ形の配列。
+ */
+function handle($config): void
+{
+    // PHP の警告を応答に出さない。警告にはサーバーのパスが入り、JSON も壊れる。失敗は戻り値で判定する
+    ini_set('display_errors', '0');
+    ini_set('log_errors', '1');
 
-require_auth();
+    header('Content-Type: application/json; charset=utf-8');
+    header('Cache-Control: no-store');
+    header('X-Content-Type-Options: nosniff');
 
-if ($method === 'GET') {
-    $project = project_name($_GET['project'] ?? '');
-    $page = isset($_GET['page']) ? text($_GET['page'], 300) : null;
-    $notes = with_notes($project, function (array $notes) use ($page) {
-        return ['return' => array_values(array_filter($notes, function ($n) use ($page) {
-            return $page === null || ($n['page'] ?? '') === $page;
-        }))];
-    }, false);
-    respond(200, ['notes' => $notes]);
-}
+    config(is_array($config) ? $config : []);
 
-if ($method !== 'POST') {
-    respond(405, ['error' => 'GET か POST だけを受け付けます']);
-}
+    $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 
-// 別サイトからの書き込みを防ぐ。独自ヘッダーはブラウザが勝手に付けられない
-if (($_SERVER['HTTP_X_PIN_NOTES'] ?? '') !== '1') {
-    respond(403, ['error' => 'ヘッダーがありません']);
-}
+    require_auth();
 
-// 大きすぎる本文は読み切る前に断る。Content-Length は偽れるので、読んだ長さでも確かめる
-if ((int) ($_SERVER['CONTENT_LENGTH'] ?? 0) > MAX_REQUEST_BYTES) {
-    respond(413, ['error' => 'リクエストが大きすぎます']);
-}
-$raw = (string) file_get_contents('php://input', false, null, 0, MAX_REQUEST_BYTES + 1);
-if (strlen($raw) > MAX_REQUEST_BYTES) {
-    respond(413, ['error' => 'リクエストが大きすぎます']);
-}
-$input = json_decode($raw, true);
-if (!is_array($input)) {
-    respond(400, ['error' => 'JSON が不正です']);
-}
-$project = project_name($input['project'] ?? '');
-$action = $input['action'] ?? '';
-$now = gmdate('Y-m-d\TH:i:s\Z');
+    if ($method === 'GET') {
+        $project = project_name($_GET['project'] ?? '');
+        $page = isset($_GET['page']) ? text($_GET['page'], 300) : null;
+        $notes = with_notes($project, function (array $notes) use ($page) {
+            return ['return' => array_values(array_filter($notes, function ($n) use ($page) {
+                return $page === null || ($n['page'] ?? '') === $page;
+            }))];
+        }, false);
+        respond(200, ['notes' => $notes]);
+    }
 
-if ($action === 'create') {
-    $src = is_array($input['note'] ?? null) ? $input['note'] : [];
-    $body = text($src['body'] ?? '', 2000);
-    if ($body === '') respond(400, ['error' => '本文が空です']);
-    $note = [
-        'id' => bin2hex(random_bytes(6)),
-        'page' => text($src['page'] ?? '/', 300),
-        'title' => text($src['title'] ?? '', 200),
-    ] + position_fields($src) + [
-        'body' => $body,
-        'author' => text($src['author'] ?? '', 40),
-        'status' => in_array($src['status'] ?? '', STATUSES, true) ? $src['status'] : 'open',
-        'kind' => kind_value($src['kind'] ?? 'memo'),
-        'importance' => importance_value($src['importance'] ?? 0),
-        'createdAt' => $now,
-        'updatedAt' => $now,
-    ];
-    with_notes($project, function (array $notes) use ($note) {
-        if (count($notes) >= MAX_NOTES) {
-            respond(409, ['error' => 'メモの数が上限の ' . MAX_NOTES . ' 件に達しています']);
-        }
-        $notes[] = $note;
-        return ['save' => $notes, 'return' => $note];
-    }, true, true);
-    respond(200, ['note' => $note]);
-}
+    if ($method !== 'POST') {
+        respond(405, ['error' => 'GET か POST だけを受け付けます']);
+    }
 
-if ($action === 'update' || $action === 'delete') {
-    $id = text($input['id'] ?? '', 40);
-    $fields = is_array($input['fields'] ?? null) ? $input['fields'] : [];
-    $found = with_notes($project, function (array $notes) use ($action, $id, $fields, $now) {
-        $found = null;
-        foreach ($notes as $i => $n) {
-            if (($n['id'] ?? '') !== $id) continue;
-            if ($action === 'delete') {
-                unset($notes[$i]);
+    // 別サイトからの書き込みを防ぐ。独自ヘッダーはブラウザが勝手に付けられない
+    if (($_SERVER['HTTP_X_PIN_NOTES'] ?? '') !== '1') {
+        respond(403, ['error' => 'ヘッダーがありません']);
+    }
+
+    // 大きすぎる本文は読み切る前に断る。Content-Length は偽れるので、読んだ長さでも確かめる
+    if ((int) ($_SERVER['CONTENT_LENGTH'] ?? 0) > MAX_REQUEST_BYTES) {
+        respond(413, ['error' => 'リクエストが大きすぎます']);
+    }
+    $raw = (string) file_get_contents('php://input', false, null, 0, MAX_REQUEST_BYTES + 1);
+    if (strlen($raw) > MAX_REQUEST_BYTES) {
+        respond(413, ['error' => 'リクエストが大きすぎます']);
+    }
+    $input = json_decode($raw, true);
+    if (!is_array($input)) {
+        respond(400, ['error' => 'JSON が不正です']);
+    }
+    $project = project_name($input['project'] ?? '');
+    $action = $input['action'] ?? '';
+    $now = gmdate('Y-m-d\TH:i:s\Z');
+
+    if ($action === 'create') {
+        $src = is_array($input['note'] ?? null) ? $input['note'] : [];
+        $body = text($src['body'] ?? '', 2000);
+        if ($body === '') respond(400, ['error' => '本文が空です']);
+        $note = [
+            'id' => bin2hex(random_bytes(6)),
+            'page' => text($src['page'] ?? '/', 300),
+            'title' => text($src['title'] ?? '', 200),
+        ] + position_fields($src) + [
+            'body' => $body,
+            'author' => text($src['author'] ?? '', 40),
+            'status' => in_array($src['status'] ?? '', STATUSES, true) ? $src['status'] : 'open',
+            'kind' => kind_value($src['kind'] ?? 'memo'),
+            'importance' => importance_value($src['importance'] ?? 0),
+            'createdAt' => $now,
+            'updatedAt' => $now,
+        ];
+        with_notes($project, function (array $notes) use ($note) {
+            if (count($notes) >= MAX_NOTES) {
+                respond(409, ['error' => 'メモの数が上限の ' . MAX_NOTES . ' 件に達しています']);
+            }
+            $notes[] = $note;
+            return ['save' => $notes, 'return' => $note];
+        }, true, true);
+        respond(200, ['note' => $note]);
+    }
+
+    if ($action === 'update' || $action === 'delete') {
+        $id = text($input['id'] ?? '', 40);
+        $fields = is_array($input['fields'] ?? null) ? $input['fields'] : [];
+        $found = with_notes($project, function (array $notes) use ($action, $id, $fields, $now) {
+            $found = null;
+            foreach ($notes as $i => $n) {
+                if (($n['id'] ?? '') !== $id) continue;
+                if ($action === 'delete') {
+                    unset($notes[$i]);
+                    $found = $n;
+                    break;
+                }
+                if (array_key_exists('body', $fields)) {
+                    $body = text($fields['body'], 2000);
+                    if ($body !== '') $n['body'] = $body;
+                }
+                if (array_key_exists('author', $fields)) $n['author'] = text($fields['author'], 40);
+                if (in_array($fields['status'] ?? '', STATUSES, true)) $n['status'] = $fields['status'];
+                if (array_key_exists('kind', $fields)) $n['kind'] = kind_value($fields['kind']);
+                if (array_key_exists('importance', $fields)) $n['importance'] = importance_value($fields['importance']);
+                // 位置の値が1つでもあれば、ピンを動かしたとみなして位置を更新する
+                // 送られなかった値は今の値を引き継ぐ。一部だけ送られても、ほかの値が初期値に戻らないように
+                if (array_intersect(POSITION_KEYS, array_keys($fields))) {
+                    $current = array_intersect_key($n, array_flip(POSITION_KEYS));
+                    $n = array_merge($n, position_fields(array_merge($current, $fields)));
+                }
+                $n['updatedAt'] = $now;
+                $notes[$i] = $n;
                 $found = $n;
                 break;
             }
-            if (array_key_exists('body', $fields)) {
-                $body = text($fields['body'], 2000);
-                if ($body !== '') $n['body'] = $body;
-            }
-            if (array_key_exists('author', $fields)) $n['author'] = text($fields['author'], 40);
-            if (in_array($fields['status'] ?? '', STATUSES, true)) $n['status'] = $fields['status'];
-            if (array_key_exists('kind', $fields)) $n['kind'] = kind_value($fields['kind']);
-            if (array_key_exists('importance', $fields)) $n['importance'] = importance_value($fields['importance']);
-            // 位置の値が1つでもあれば、ピンを動かしたとみなして位置を更新する
-            // 送られなかった値は今の値を引き継ぐ。一部だけ送られても、ほかの値が初期値に戻らないように
-            if (array_intersect(POSITION_KEYS, array_keys($fields))) {
-                $current = array_intersect_key($n, array_flip(POSITION_KEYS));
-                $n = array_merge($n, position_fields(array_merge($current, $fields)));
-            }
-            $n['updatedAt'] = $now;
-            $notes[$i] = $n;
-            $found = $n;
-            break;
-        }
-        // 見つからなければ書き直さない
-        return $found === null ? ['return' => null] : ['save' => $notes, 'return' => $found];
-    }, true);
-    if ($found === null) respond(404, ['error' => 'メモが見つかりません']);
-    respond(200, $action === 'delete' ? ['ok' => true] : ['note' => $found]);
+            // 見つからなければ書き直さない
+            return $found === null ? ['return' => null] : ['save' => $notes, 'return' => $found];
+        }, true);
+        if ($found === null) respond(404, ['error' => 'メモが見つかりません']);
+        respond(200, $action === 'delete' ? ['ok' => true] : ['note' => $found]);
+    }
+
+    respond(400, ['error' => 'action が不正です']);
 }
 
-respond(400, ['error' => 'action が不正です']);
+// 直接開かれたときだけ、隣の設定ファイルで動く。ライブラリとして読み込まれたときは関数の定義だけにする
+if (!\defined('PIN_NOTES_LIBRARY')) {
+    $file = __DIR__ . '/pin-notes.config.php';
+    handle(is_file($file) ? (require $file) : []);
+}

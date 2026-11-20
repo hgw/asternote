@@ -12,6 +12,7 @@
 | `api.php` | サーバー側。メモを JSON で保存する。PHP 7.4 以降 |
 | `export.mjs` | メモを Markdown に書き出す。Node 18 以降 |
 | `copy.mjs` | npm で入れたとき、`pin-notes.js` と `api.php` を公開ディレクトリに複製する |
+| `wordpress/pin-notes.php` | WordPress のプラグイン本体。リリースの zip に、`pin-notes.js` と `api.php` と一緒に入る |
 
 ## 導入する前に
 
@@ -24,7 +25,7 @@
 GitHub から npm で入れる。バージョンはタグで指定する。
 
 ```sh
-npm i github:hgw/pin-notes#v0.6.0
+npm i github:hgw/pin-notes#v0.7.0
 ```
 
 `pin-notes-copy` で、`pin-notes.js` と `api.php` を公開ディレクトリに複製する。
@@ -53,7 +54,40 @@ npm i github:hgw/pin-notes#v0.6.0
         data-project="myproject" defer></script>
 ```
 
-## 導入方法2: WordPress や静的サイト
+## 導入方法2: WordPress
+
+WordPress のプラグインとして入れる。script タグも API も、プラグインが用意する。
+
+1. [リリース](https://github.com/hgw/pin-notes/releases) から `pin-notes-wordpress-<版>.zip` をダウンロードする
+2. 管理画面の「プラグイン」→「新規追加」→「プラグインのアップロード」で入れて、有効にする
+3. `wp-config.php` に定数を書く
+
+   ```php
+   define('PIN_NOTES_DATA_DIR', '/home/xxx/data/example.com/pin-notes');
+   define('PIN_NOTES_PROJECT', 'myproject');
+   ```
+
+4. サイト全体に Basic 認証をかける
+
+| 定数 | 意味 |
+|---|---|
+| `PIN_NOTES_DATA_DIR` | 必須。メモの保存先。ドキュメントルートの外にする |
+| `PIN_NOTES_PROJECT` | 任意。メモの保存単位。英小文字、数字、`-`、`_`。省くと `site` |
+| `PIN_NOTES_ALLOW_ANONYMOUS` | 任意。`true` にすると、Basic 認証の確認を外す |
+| `PIN_NOTES_DEFAULT_ON` | 任意。`true` にすると、初めて開いた人にもメモを表示する |
+
+`PIN_NOTES_DATA_DIR` を書いていない環境では、プラグインは何もしない。script タグも API も出さない。テスト環境の `wp-config.php` にだけ定数を書けば、本番にプラグインが入っていても動かない。
+
+API は `wp-admin/admin-ajax.php?action=pin_notes` で受ける。書き出しのときは、この URL を `--endpoint` に渡す。
+
+mu-plugins に置くときは、zip の中の `pin-notes` フォルダを `wp-content/mu-plugins/` に置く。そのうえで、読み込むだけのファイルを `wp-content/mu-plugins/pin-notes-loader.php` として足す。
+
+```php
+<?php
+require __DIR__ . '/pin-notes/pin-notes.php';
+```
+
+## 導入方法3: 静的サイトなど
 
 `pin-notes.js` は jsDelivr から読み込む。サーバーに置くのは `api.php` と設定ファイルだけ。
 
@@ -67,10 +101,10 @@ npm i github:hgw/pin-notes#v0.6.0
    ];
    ```
 
-3. ページに script タグを足す。WordPress なら、テーマの `footer.php` などに書く
+3. ページに script タグを足す
 
    ```html
-   <script src="https://cdn.jsdelivr.net/gh/hgw/pin-notes@v0.6.0/pin-notes.js"
+   <script src="https://cdn.jsdelivr.net/gh/hgw/pin-notes@v0.7.0/pin-notes.js"
            data-endpoint="/pin-notes/api.php"
            data-project="myproject" defer></script>
    ```

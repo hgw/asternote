@@ -1,6 +1,6 @@
 {
   "name": "pin-notes",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "プレビュー画面にピンと範囲でメモを残すツール",
   "private": true,
   "license": "MIT",
@@ -21,5 +21,8 @@
     "api.php",
     "copy.mjs",
     "export.mjs"
-  ]
+  ],
+  "scripts": {
+    "build:wordpress": "sh scripts/build-wordpress.sh"
+  }
 }
