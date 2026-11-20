@@ -201,30 +201,40 @@
 
   function localStore() {
     var read = function () { try { return JSON.parse(ls.get(KEY + 'notes') || '[]'); } catch (e) { return []; } };
-    var write = function (notes) { ls.set(KEY + 'notes', JSON.stringify(notes)); };
+    // 書けなかったら例外にする。保存できたように見せて、メモが黙って消えないようにする
+    var write = function (notes) {
+      try { localStorage.setItem(KEY + 'notes', JSON.stringify(notes)); } catch (e) { throw new Error('ブラウザに保存できませんでした'); }
+    };
     var now = function () { return new Date().toISOString(); };
     return {
       list: function (page) {
         return Promise.resolve(read().filter(function (n) { return n.page === page; }));
       },
+      // 中で投げた例外は、Promise の失敗として呼び出し側に届く
       create: function (note) {
-        var n = Object.assign({}, note, { id: Math.random().toString(16).slice(2, 14), createdAt: now(), updatedAt: now() });
-        var all = read(); all.push(n); write(all);
-        return Promise.resolve(n);
+        return new Promise(function (resolve) {
+          var n = Object.assign({}, note, { id: Math.random().toString(16).slice(2, 14), createdAt: now(), updatedAt: now() });
+          var all = read(); all.push(n); write(all);
+          resolve(n);
+        });
       },
       update: function (id, fields) {
-        var all = read(); var found = null;
-        all.forEach(function (n) { if (n.id === id) { Object.assign(n, fields, { updatedAt: now() }); found = n; } });
-        if (!found) return Promise.reject(new Error('メモが見つかりません'));
-        write(all);
-        return Promise.resolve(found);
+        return new Promise(function (resolve) {
+          var all = read(); var found = null;
+          all.forEach(function (n) { if (n.id === id) { Object.assign(n, fields, { updatedAt: now() }); found = n; } });
+          if (!found) throw new Error('メモが見つかりません');
+          write(all);
+          resolve(found);
+        });
       },
       remove: function (id) {
-        var all = read();
-        var rest = all.filter(function (n) { return n.id !== id; });
-        if (rest.length === all.length) return Promise.reject(new Error('メモが見つかりません'));
-        write(rest);
-        return Promise.resolve({ ok: true });
+        return new Promise(function (resolve) {
+          var all = read();
+          var rest = all.filter(function (n) { return n.id !== id; });
+          if (rest.length === all.length) throw new Error('メモが見つかりません');
+          write(rest);
+          resolve({ ok: true });
+        });
       },
     };
   }
@@ -389,7 +399,8 @@
       STATUS.map(function (x) { var a = '[data-status="' + x.key + '"]'; return '[data-pin-notes] ' + a + ',[data-pin-notes]' + a + '{--pn-c:var(--pn-' + x.key + ')}'; }).join(''),
       '.pn-pin,.pn-tag{background:var(--pn-c)}',
       '.pn-area{background:color-mix(in srgb,var(--pn-c) 10%,transparent)}',
-      '.pn-pin.is-lost{opacity:.7;outline:2px dashed var(--pn-open);outline-offset:1px}',
+      // 見失ったピンは点線の枠だけで示す。半透明にすると番号のコントラストが足りなくなる
+      '.pn-pin.is-lost{outline:2px dashed var(--pn-open);outline-offset:1px}',
       '.pn-pin.is-dragging{cursor:grabbing;opacity:.85}',
       '.pn-area{position:absolute;border:2px solid var(--pn-c);border-radius:4px;pointer-events:none}',
       '.pn-area.is-lost{border-style:dashed;opacity:.6}',
@@ -411,7 +422,10 @@
       '.pn-btn.is-on:hover,.pn-btn--primary:hover{background:color-mix(in srgb,var(--pn-primary) 85%,#000)}',
       '.pn-btn--danger{background:var(--pn-bg);border-color:var(--pn-danger);color:var(--pn-danger)}',
       '.pn-btn--danger:hover{background:color-mix(in srgb,var(--pn-danger) 8%,#fff)}',
-      '.pn-btn:disabled{opacity:.5;cursor:default}',
+      '.pn-btn:disabled,.pn-btn[aria-disabled="true"]{opacity:.5;cursor:default}',
+      // 読み上げにだけ使う欄。画面には出さない
+      '.pn-sr{position:absolute;width:1px;height:1px;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}',
+      '.pn-btn--icon{min-width:32px;padding:0 8px}',
       '.pn-hint{padding:0 6px;color:var(--pn-muted)}',
       '.pn-hint:empty{display:none}',
       '.pn-check{display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:0 6px;cursor:pointer;white-space:nowrap}',
@@ -619,7 +633,7 @@
     if (!popover || state.placing) return;
     var t = e.target;
     if (popover.contains(t) || (t.closest && t.closest('.pn-pin'))) return;
-    requestClosePopover();
+    requestClosePopover(KEEP_FOCUS);
   }
 
   // 置く操作のあいだと直後の click は、ページに渡さない
@@ -643,6 +657,8 @@
 
   function renderPins() {
     if (!layer) return;
+    // ドラッグ中に描き直すと、動かしているピンが消えてドラッグが途切れる。終わるまで待たせる
+    if (state.dragging) { state.renderPending = true; return; }
     layer.textContent = '';
     if (!state.enabled) return;
     visibleNumbered().forEach(function (item) {
@@ -736,6 +752,7 @@
         // 書きかけの吹き出しがあれば、内容を守るためにドラッグしない
         if (!requestClosePopover()) { cleanup(); return; }
         dragging = true;
+        state.dragging = true;
         pin.classList.add('is-dragging');
       }
       draw();
@@ -748,17 +765,22 @@
       window.removeEventListener('scroll', onScroll, true);
       pin.classList.remove('is-dragging');
       cancelGesture = null;
+      // 待たせていた描き直しがあれば、ここで行う
+      state.dragging = false;
+      if (state.renderPending) { state.renderPending = false; renderPins(); }
     };
     var end = function (ev) {
       var moved = dragging;
-      cleanup();
-      if (!moved) return;
+      if (!moved) { cleanup(); return; }
       swallowNextClick(); // 続く click で内容を開かない
-      if (ev.type === 'pointercancel') { updatePositions(); return; }
+      if (ev.type === 'pointercancel') { cleanup(); updatePositions(); return; }
       var c = clientRect();
       var fields = c.x2 != null ? areaAnchor(c.x, c.y, c.x2, c.y2) : pointAnchor(c.x, c.y);
       // 保存を待たずに新しい位置を反映する。保存までの間に位置を計算し直しても、元の位置に戻らないように
+      // 一覧の値も書き換えてから片付ける。待たせていた描き直しが、古い位置で描かないようにするため
       pin.note = Object.assign({}, pin.note, fields);
+      state.notes = state.notes.map(function (n) { return n.id === pin.note.id ? pin.note : n; });
+      cleanup();
       pin.anchorEl = findAnchor(pin.note);
       updatePositions();
       store.update(pin.note.id, fields).then(refresh).catch(saveFailed);
@@ -793,31 +815,36 @@
   }
 
   function placePopover(x, y) {
-    var w = 280;
+    var w = popover.offsetWidth || 300;
     var left = Math.min(Math.max(8 + window.scrollX, x + 12), window.scrollX + document.documentElement.clientWidth - w - 8);
     popover.style.left = left + 'px';
     popover.style.top = y + 8 + 'px';
   }
 
   // 吹き出しを必ず閉じる。保存やキャンセルのボタンなど、閉じてよいと決まっているときに使う
-  // フォーカスが吹き出しの中にあったときだけ、開く前の場所に戻す。外側をクリックして閉じたときは、押した場所を優先する
-  function closePopover() {
+  // フォーカスが吹き出しの中にあったときだけ、開く前の場所に戻す
+  // 外側をクリックして閉じたときは KEEP_FOCUS を渡す。押した場所を優先し、ピンの位置へスクロールさせない
+  // ボタンの onclick に直接渡すと、引数はイベントになる。文字列と比べるので、戻す扱いになる
+  var KEEP_FOCUS = 'keep-focus';
+  function closePopover(mode) {
     var back = null;
-    if (popover) {
+    if (popover && mode !== KEEP_FOCUS) {
       // 保存中にボタンを無効にすると、フォーカスは body に外れる。そのときも戻す
       var active = document.activeElement;
       if (!active || active === document.body || popover.contains(active)) back = popover.returnTo;
-      popover.remove();
     }
+    if (popover) popover.remove();
     popover = null;
     state.openId = null;
     if (back) restoreFocus(back);
   }
 
   // 戻り先は要素か、メモの id。ピンは描き直すと別の要素になるので、id から探し直す
+  // 完了にしてピンが隠れたときや、一覧が描き直されたときは、戻り先がなくなる。そのときはバーの「メモ」に戻す
   function restoreFocus(back) {
     var el = typeof back === 'string' ? pinFor(back) : back;
-    if (el && el.isConnected && typeof el.focus === 'function') el.focus();
+    if (!el || !el.isConnected) el = bar && !bar.hidden ? bar.addBtn : null;
+    if (el && typeof el.focus === 'function') el.focus();
   }
 
   function pinFor(id) {
@@ -839,21 +866,22 @@
 
   // 吹き出しを閉じてよければ閉じる。書きかけの内容があるときは閉じずに false を返し、編集欄に案内を出す
   // 外側のクリック、Esc、ピンのドラッグ、別のピンやメモを開く操作はすべてこれを通す
-  function requestClosePopover() {
+  function requestClosePopover(mode) {
     if (!popover) return true;
     if (popover.isDirty && popover.isDirty()) {
       if (popover.warn) popover.warn();
       return false;
     }
-    closePopover();
+    closePopover(mode);
     return true;
   }
 
   function openEditor(note, anchor) {
     if (!requestClosePopover()) return;
-    var body = h('textarea', { placeholder: '決まったこと、直したいこと', 'aria-label': '本文' });
+    // 上限は api.php と同じ。超えた分が黙って切られないように、入力の時点で止める
+    var body = h('textarea', { placeholder: '決まったこと、直したいこと', 'aria-label': '本文', maxlength: '2000' });
     body.value = note ? note.body : '';
-    var author = h('input', { type: 'text', placeholder: ANONYMOUS, 'aria-label': '名前', autocomplete: 'name', value: (note && note.author) || ls.get('pin-notes:author') || '' });
+    var author = h('input', { type: 'text', placeholder: ANONYMOUS, 'aria-label': '名前', autocomplete: 'name', maxlength: '40', value: (note && note.author) || ls.get('pin-notes:author') || '' });
     // 種類と重要度は、押して選ぶボタンの並び。選んでいるものは aria-pressed で示す
     var segment = function (label, options, current) {
       var group = h('div', { class: 'pn-seg', role: 'group', 'aria-label': label });
@@ -876,14 +904,29 @@
       // 星だけのボタンは、読み上げで「重要度 2」と読ませる
       return { value: n, text: n ? stars(n) : 'なし', label: n ? '重要度 ' + n : '重要度の指定なし', title: n ? '重要度 ' + n : '重要度の指定なし' };
     }), importanceOf(note));
+    // 保存と削除は同時に走らせない。どちらかの通信中は、もう一方も受け付けない
+    // 無効は aria-disabled で示す。disabled にするとフォーカスが body に外れるため
+    // 文字は変えない。幅が変わって隣のボタンがずれるため。進み具合は読み上げ用の欄で伝える
+    var busy = false;
+    var setBusy = function (on, message) {
+      busy = on;
+      [save, del].forEach(function (b) {
+        if (!b) return;
+        if (on) b.setAttribute('aria-disabled', 'true');
+        else b.removeAttribute('aria-disabled');
+      });
+      progress.textContent = on ? message : '';
+    };
+    // 通信が終わったときに、別の吹き出しに切り替わっていたら閉じない
+    var self = null;
+    var closeSelf = function () { if (popover === self) closePopover(); };
     var save = h('button', {
       type: 'button', class: 'pn-btn pn-btn--primary', text: '保存', title: '⌘ / Ctrl + Enter でも保存できる',
       onclick: function () {
+        if (busy) return;
         var text = body.value.trim();
-        if (!text) { body.focus(); return; }
-        if (save.disabled) return;
-        save.disabled = true;
-        save.textContent = '保存中…';
+        if (!text) { error.textContent = '本文を入力してください'; body.focus(); return; }
+        setBusy(true, '保存しています');
         error.textContent = '';
         ls.set('pin-notes:author', author.value.trim());
         // 完了かどうかは閲覧の吹き出しで切り替える。新しいメモは api.php が未完了で作る
@@ -892,21 +935,52 @@
           ? store.update(note.id, fields)
           : store.create(Object.assign({ page: pagePath(), title: document.title }, anchor, fields));
         p.then(function (saved) {
-          if (!note && saved && saved.id) popover.returnTo = saved.id;
+          if (!note && saved && saved.id) self.returnTo = saved.id;
           return refresh();
-        }).then(closePopover).catch(function (err) {
+        }).then(closeSelf).catch(function (err) {
           // 書いた文章を失わないよう、吹き出しは閉じずに再送できる状態に戻す
-          save.disabled = false;
-          save.textContent = '保存';
+          setBusy(false);
           error.textContent = '保存できませんでした: ' + (err && err.message ? err.message : err);
           refresh();
         });
       },
     });
     var cancel = h('button', { type: 'button', class: 'pn-btn', text: 'キャンセル', onclick: closePopover });
+    // 削除は、めったに使わないので編集の吹き出しに置く。ゴミ箱のアイコンだけにし、名前は aria-label で付ける
+    // 1回目は「本当に削除？」と出すだけにし、2回目で消す。書きかけの内容があっても削除を優先する
+    // 確認の状態は、フォーカスが外れたら解く。あとで誤って押したときに、確認なしで消えないようにする
+    var setConfirm = function (on) {
+      del.dataset.confirm = on ? '1' : '';
+      var name = on ? '本当に削除？' : '削除';
+      del.setAttribute('aria-label', name);
+      del.title = name;
+      if (on) del.appendChild(h('span', { text: name }));
+      else if (del.lastChild.nodeName === 'SPAN' && !del.lastChild.classList.contains('pn-icon')) del.lastChild.remove();
+    };
+    var del = note ? h('button', {
+      type: 'button', class: 'pn-btn pn-btn--danger pn-btn--icon', 'aria-label': '削除', title: '削除',
+      onclick: function () {
+        if (busy) return;
+        if (del.dataset.confirm !== '1') { setConfirm(true); return; }
+        setBusy(true, '削除しています');
+        error.textContent = '';
+        // 消したメモのピンには戻れないので、フォーカスはバーの「メモ」に戻す
+        self.returnTo = bar.addBtn;
+        store.remove(note.id).then(refresh).then(closeSelf).catch(function (err) {
+          // 失敗したら吹き出しは閉じない。書きかけの内容を残し、理由を吹き出しの中に出す
+          setBusy(false);
+          setConfirm(false);
+          self.returnTo = returnTo;
+          error.textContent = '削除できませんでした: ' + (err && err.message ? err.message : err);
+          refresh();
+        });
+      },
+    }, [iconEl('trash-2')]) : null;
+    if (del) del.addEventListener('blur', function () { if (!busy && del.dataset.confirm === '1') setConfirm(false); });
     // 新しいメモは、保存したらそのピンに、やめたら開く前の場所にフォーカスを戻す
     var returnTo = note ? note.id : null;
     var error = h('p', { class: 'pn-error', role: 'alert' });
+    var progress = h('p', { class: 'pn-sr', role: 'status' });
     // ⌘ / Ctrl + Enter で保存する。日本語の変換中の Enter は無視する
     var saveByKey = function (e) {
       if (e.key !== 'Enter' || !(e.metaKey || e.ctrlKey) || e.isComposing || e.keyCode === 229) return;
@@ -921,14 +995,19 @@
     showPopover([
       h('div', { class: 'pn-label', text: '種類' }),
       kind,
+      h('div', { class: 'pn-label', text: '本文' }),
       body,
       h('div', { class: 'pn-label', text: '重要度' }),
       importance,
       // 名前はメモの中身ではないので、罫線で分けて保存の直前に置く
       h('div', { class: 'pn-sep' }, [h('div', { class: 'pn-label', text: '名前' }), author]),
       error,
+      progress,
       h('div', { class: 'pn-row' }, [save, cancel]),
+      // 削除は最初から別の行に置く。確認の文字が出ても同じ行の中で伸びるだけで、吹き出しの高さが変わらない
+      del ? h('div', { class: 'pn-row' }, [del]) : null,
     ], note ? 'メモを編集' : '新しいメモ', returnTo);
+    self = popover;
     // 書きかけの内容があるかどうか。本文、名前、状態、種類、重要度のどれかが開いたときから変わっていれば書きかけとする
     popover.isDirty = function () {
       return body.value !== initialBody || author.value !== initialAuthor ||
@@ -957,19 +1036,16 @@
       onclick: function () {
         if (toggleDone.disabled) return;
         toggleDone.disabled = true;
-        store.update(note.id, { status: done ? 'open' : 'done' }).then(refresh).then(closePopover).catch(saveFailed);
+        // 通信の間にほかの吹き出しを開いていたら、それは閉じない。書きかけの内容を守るため
+        store.update(note.id, { status: done ? 'open' : 'done' }).then(refresh).then(function () {
+          if (popover === viewer) closePopover();
+        }).catch(function (err) {
+          toggleDone.disabled = false;
+          saveFailed(err);
+        });
       },
-    }, done ? [h('span', { text: '未完了に戻す' })] : label('check', '完了にする'));
+    }, done ? [h('span', { text: '未完了に戻す' })] : label('check', '完了'));
     var edit = h('button', { type: 'button', class: 'pn-btn', onclick: function () { openEditor(note); } }, label('pencil', '編集'));
-    var del = h('button', {
-      type: 'button', class: 'pn-btn pn-btn--danger',
-      onclick: function () {
-        if (del.dataset.confirm !== '1') { del.dataset.confirm = '1'; del.lastChild.textContent = 'もう一度押すと削除'; return; }
-        if (del.disabled) return;
-        del.disabled = true;
-        store.remove(note.id).then(refresh).then(closePopover).catch(saveFailed);
-      },
-    }, label('trash-2', '削除'));
     var k = kindOf(note.kind);
     var kindLabel = h('span', { class: 'pn-kind' }, [iconEl(k.icon), document.createTextNode(k.label)]);
     var imp = importanceOf(note);
@@ -982,8 +1058,9 @@
       ]),
       h('p', { class: 'pn-body', text: note.body }),
       metaEl('div', note),
-      h('div', { class: 'pn-row' }, [toggleDone, edit, del]),
+      h('div', { class: 'pn-row' }, [toggleDone, edit]),
     ], num > 0 ? 'メモ ' + num : 'メモ', returnTo || note.id);
+    var viewer = popover;
     popover.target = note;
     popover.targetEl = findAnchor(note);
     movePopover();
@@ -1102,8 +1179,8 @@
   }
 
   // 保存に失敗したら、一覧を読み直す。ほかの人が消したメモのピンが残り続けないようにする
+  // 吹き出しは閉じない。失敗したのは前の操作で、今開いている吹き出しとは関係ないことがあるため
   function saveFailed(err) {
-    closePopover();
     refresh().then(function () { showError('保存できませんでした', err); });
   }
 

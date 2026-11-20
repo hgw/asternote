@@ -12,7 +12,7 @@
  * 設定は同じディレクトリの pin-notes.config.php に書く。
  *   <?php return [
  *       'data_dir' => '/path/outside/docroot', // 必須。保存先。ドキュメントルートの外にする
- *       'projects' => ['myproject'],            // 任意。使える project 名を限る
+ *       'projects' => ['myproject'],            // 必須。使える project 名の一覧
  *       'allow_anonymous' => false,             // 任意。true で Basic 認証の確認を外す
  *   ];
  */
@@ -70,6 +70,11 @@ function config(): array
     if (!is_array($loaded) || empty($loaded['data_dir']) || !is_string($loaded['data_dir'])) {
         respond(500, ['error' => 'data_dir が設定されていません']);
     }
+    // project 名を限らないと、名前を変えながら保存ファイルを際限なく作れる。設定がない、または形が違えば止める
+    $projects = $loaded['projects'] ?? null;
+    if (!is_array($projects) || !$projects || array_filter($projects, 'is_string') !== $projects) {
+        respond(500, ['error' => 'projects を、project 名の配列で設定してください']);
+    }
     return $config = $loaded;
 }
 
@@ -110,11 +115,13 @@ function data_dir(): string
  * Basic 認証を通ったリクエストかを確かめる。
  * 認証のかけ忘れに気づけるように、通っていなければ止める。
  * CGI で動くレンタルサーバーでは REMOTE_USER、mod_rewrite を経ると REDIRECT_REMOTE_USER に入る。
+ * どちらも、サーバーが ID とパスワードを確かめたあとにだけ入る。
+ * PHP_AUTH_USER は使わない。サーバーが確かめていなくても、送られた Authorization ヘッダーから PHP が作るため。
  */
 function require_auth(): void
 {
     if ((config()['allow_anonymous'] ?? false) === true) return;
-    foreach (['REMOTE_USER', 'REDIRECT_REMOTE_USER', 'PHP_AUTH_USER'] as $key) {
+    foreach (['REMOTE_USER', 'REDIRECT_REMOTE_USER'] as $key) {
         if (!empty($_SERVER[$key])) return;
     }
     respond(403, ['error' => 'Basic 認証の情報が届いていません。サイトに Basic 認証をかけてください。認証なしで使う場合は、設定に allow_anonymous を書いてください']);
@@ -125,9 +132,8 @@ function project_name($value): string
     if (!is_string($value) || !preg_match('/^[a-z0-9_-]{1,40}$/', $value)) {
         respond(400, ['error' => 'project が不正です']);
     }
-    // 設定で限っていれば、それ以外の名前では保存ファイルを作らせない
-    $allowed = config()['projects'] ?? null;
-    if (is_array($allowed) && !in_array($value, $allowed, true)) {
+    // 設定にない名前では、保存ファイルを作らせない
+    if (!in_array($value, config()['projects'], true)) {
         respond(404, ['error' => 'project が見つかりません']);
     }
     return $value;

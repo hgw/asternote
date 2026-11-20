@@ -24,7 +24,7 @@
 GitHub から npm で入れる。バージョンはタグで指定する。
 
 ```sh
-npm i github:hgw/pin-notes#v0.4.2
+npm i github:hgw/pin-notes#v0.5.0
 ```
 
 `pin-notes-copy` で、`pin-notes.js` と `api.php` を公開ディレクトリに複製する。
@@ -34,11 +34,13 @@ npm i github:hgw/pin-notes#v0.4.2
 ```json
 {
   "scripts": {
-    "predev": "pin-notes-copy public/pin-notes --config pin-notes.config.php",
+    "predev": "pin-notes-copy public/pin-notes",
     "prebuild": "pin-notes-copy public/pin-notes --config pin-notes.config.php"
   }
 }
 ```
+
+`--config` は、本番用のビルドでだけ付ける。開発サーバーは PHP を動かさないので、公開ディレクトリに置いた設定ファイルを文字のまま返してしまう。設定ファイルには、保存先のパスと project 名が入っている。
 
 複製したファイルは git に入れない。`.gitignore` に `public/pin-notes/` を足す。
 設定ファイルには保存先のパスが入る。案件のリポジトリが公開なら、設定ファイルも git に入れない。
@@ -68,7 +70,7 @@ npm i github:hgw/pin-notes#v0.4.2
 3. ページに script タグを足す。WordPress なら、テーマの `footer.php` などに書く
 
    ```html
-   <script src="https://cdn.jsdelivr.net/gh/hgw/pin-notes@v0.4.2/pin-notes.js"
+   <script src="https://cdn.jsdelivr.net/gh/hgw/pin-notes@v0.5.0/pin-notes.js"
            data-endpoint="/pin-notes/api.php"
            data-project="myproject" defer></script>
    ```
@@ -82,12 +84,12 @@ npm i github:hgw/pin-notes#v0.4.2
 | キー | 意味 |
 |---|---|
 | `data_dir` | 必須。メモの保存先。ドキュメントルートの中を指すと、api.php は 500 を返して止まる |
-| `projects` | 任意。使える `data-project` の名前の配列。書いておくと、ほかの名前では保存ファイルを作れない |
+| `projects` | 必須。使える `data-project` の名前の配列。ほかの名前では保存ファイルを作れない。書かないと、api.php は 500 を返して止まる |
 | `allow_anonymous` | 任意。`true` にすると、Basic 認証の確認を外す |
 
 api.php は、Basic 認証を通っていないリクエストを 403 で断る。かけ忘れたまま動き続けないようにするため。
 
-- 確認には、サーバーが PHP に渡す `REMOTE_USER` などの値を使う
+- 確認には、サーバーが ID とパスワードを確かめたあとに PHP に渡す `REMOTE_USER` と `REDIRECT_REMOTE_USER` を使う
 - 手元の `php -S` には Basic 認証がない。手元で試すときだけ `allow_anonymous` を `true` にする
 - Basic 認証の ID を PHP に渡さないサーバーでも、`allow_anonymous` が必要になる
 
@@ -142,17 +144,21 @@ html {
 
 ## アクセシビリティ
 
-WCAG 2.2 AA を目指している。
+WCAG 2.2 AA を目指しているが、まだ満たしていない項目がある。
+
+対応していること:
 
 - バー、吹き出し、一覧は、キーボードだけで操作できる
 - ピンは Tab で選べる。Enter で吹き出しが開き、Esc で閉じるとピンにフォーカスが戻る
 - 完了かどうかは、色に加えてアイコンでも示す。完了のピンにはチェックが付く
 - ピンの読み上げには、番号、状態、種類、範囲かどうか、重要度が入る
 
-次の操作はまだマウスやタッチでしかできない。
+満たしていない項目:
 
-- メモを置く操作
-- ピンの移動と、範囲の指示。どちらもドラッグを使う
+- 2.1.1 キーボード: メモを置く操作は、マウスかタッチでしかできない
+- 2.5.7 ドラッグの代替: ピンの移動と範囲の指示は、ドラッグでしかできない
+
+どちらも [#3](https://github.com/hgw/pin-notes/issues/3) で扱う。
 
 ## JavaScript の API
 
@@ -173,10 +179,10 @@ PinNotes.onChange((enabled) => { ... });
 - バーの右の × で、メモの表示を閉じる
 - 範囲は枠で表示し、左上に番号のピンを出す。範囲の両端を含む一番近い共通の親要素を基準に、相対位置で記録する
 - 打ったピンはドラッグで動かせる。範囲のメモでは範囲ごと動く。離した位置で基準を求め直して保存する
-- ピンを押すと、本文の確認、状態の変更、編集、削除ができる
+- ピンを押すと、本文の確認、完了の切り替え、編集ができる。削除は、編集の吹き出しのゴミ箱から行う。1回目で「本当に削除？」と出て、もう一度押すと消える
 - 編集欄では、⌘ / Ctrl + Enter でも保存できる
 - 吹き出しの外側を押すと閉じる。書きかけの内容がある編集中の吹き出しは、うっかり消えないように閉じない
-- メモは未完了か完了のどちらか。新しいメモは未完了で作る。吹き出しの「完了にする」で完了にし、「未完了に戻す」で戻せる
+- メモは未完了か完了のどちらか。新しいメモは未完了で作る。吹き出しの「完了」で完了にし、「未完了に戻す」で戻せる
 - 未完了のピンはオレンジ、完了のピンは灰色にチェックが付く
 - 種類は メモ / アイデア / 修正 / 質問・情報 / いいね の5つ。メモ以外は、ピンの番号の前にアイコンが出る
 - 重要度は 0〜3 の星。0 は指定なし。吹き出しと一覧に星が出る。ピンには出さない

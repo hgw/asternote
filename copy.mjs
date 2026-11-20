@@ -6,6 +6,7 @@
 //
 // --config を付けると、設定ファイルも同じ場所に複製する。
 // 設定ファイルには保存先のパスが入る。公開リポジトリの案件では、設定ファイルを git に入れないこと。
+// 開発サーバーは PHP を動かさず、公開ディレクトリのファイルを文字のまま返す。--config は本番用のビルドでだけ付ける。
 import { copyFile, mkdir } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -15,6 +16,16 @@ const argv = process.argv.slice(2);
 let dest = null;
 let config = null;
 for (let i = 0; i < argv.length; i++) {
+  if (argv[i] === '--help' || argv[i] === '-h') {
+    console.log(usage);
+    process.exit(0);
+  }
+  // 知らないオプションを複製先と取り違えて、- で始まる名前のフォルダーを作らないようにする
+  if (argv[i].startsWith('-') && argv[i] !== '--config') {
+    console.error(`pin-notes-copy: 知らないオプションです: ${argv[i]}`);
+    console.error(usage);
+    process.exit(1);
+  }
   if (argv[i] === '--config') {
     config = argv[++i];
     if (!config) {

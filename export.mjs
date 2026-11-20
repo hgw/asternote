@@ -67,6 +67,13 @@ const day = (value) => {
 };
 // 改行をそのまま書くと、見出しや状態の項目を偽装できる。どの項目も1行にまとめる
 const oneLine = (s) => String(s ?? '').replace(/\s*[\r\n]+\s*/g, ' / ');
+// メモの文字は Markdown や HTML として解釈させない。<!-- で後ろのメモが隠れたり、リンクや画像が埋め込まれたりするのを防ぐ
+// & < > は文字参照に、Markdown の記号はバックスラッシュで打ち消す
+const text = (s) => oneLine(s)
+  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  .replace(/[\\`*_[\]()#|~!]/g, '\\$&');
+// URL は <> で囲んだ自動リンクにする。囲みを壊す文字と空白だけを、パーセント符号に直す
+const url = (s) => `<${oneLine(s).replace(/[<>\s`]/g, (c) => encodeURIComponent(c))}>`;
 
 const byPage = new Map();
 for (const n of notes.sort((a, b) => a.createdAt.localeCompare(b.createdAt))) {
@@ -85,21 +92,21 @@ const lines = [
 ];
 
 for (const [page, list] of [...byPage].sort(([a], [b]) => a.localeCompare(b))) {
-  const title = oneLine(list.find((n) => n.title)?.title ?? '');
-  lines.push(`## ${oneLine(page)}`, '');
-  if (title) lines.push(`${title}｜${site}${oneLine(page)}`, '');
+  const title = text(list.find((n) => n.title)?.title ?? '');
+  lines.push(`## ${text(page)}`, '');
+  if (title) lines.push(`${title}｜${url(site + page)}`, '');
   for (const [label, match] of STATUS) {
     const items = list.filter(match);
     if (!items.length) continue;
     lines.push(`### ${label}`, '');
     for (const n of items) {
-      const meta = [oneLine(n.author) || ANONYMOUS, day(n.updatedAt || n.createdAt)].filter(Boolean).join('、');
+      const meta = [text(n.author) || ANONYMOUS, day(n.updatedAt || n.createdAt)].filter(Boolean).join('、');
       const area = n.rx2 != null && n.ry2 != null ? '［範囲］' : '';
       // 自分のキーだけを見る。constructor などの組み込みの名前を種類として拾わないように
       const kind = Object.hasOwn(KINDS, n.kind) && n.kind !== 'memo' ? `［${KINDS[n.kind]}］` : '';
       const imp = importanceOf(n.importance);
       const star = imp ? `${'★'.repeat(imp)} ` : '';
-      lines.push(`- ${area}${kind}${star}${oneLine(n.body)}（${meta}）`);
+      lines.push(`- ${area}${kind}${star}${text(n.body)}（${meta}）`);
     }
     lines.push('');
   }
