@@ -133,7 +133,7 @@
   <h2>ラベル</h2>
   <div class="stage" data-asternote>
     <div class="row">
-      <span class="pn-tag" data-status="open">1 未完了</span>
+      <span class="pn-tag" data-status="open">1<span class="pn-sr">、未完了</span></span>
       <span class="pn-tag" data-status="done" data-icon="check">2 完了</span>
       <span class="pn-kind" data-icon="lightbulb">アイデア</span>
       <span class="pn-stars" role="img" aria-label="重要度 2">★★</span>
@@ -211,10 +211,9 @@
     <div class="row">
       <div class="cell">
         <div class="pn-pop" role="dialog" aria-label="メモ 2">
-          <h2 class="pn-title">メモ 2</h2>
+          <div class="pn-headrow"><h2 class="pn-title"><span aria-hidden="true">#2</span><span class="pn-sr">メモ 2</span></h2><span class="pn-kind" data-icon="lightbulb">アイデア</span><span class="pn-stars" role="img" aria-label="重要度 2">★★</span></div>
           <button type="button" class="pn-x" aria-label="閉じる" data-icon="x"></button>
-          <div class="pn-head"><span class="pn-kind" data-icon="lightbulb">アイデア</span><span class="pn-tag" data-status="open">未完了</span><span class="pn-stars" role="img" aria-label="重要度 2">★★</span></div>
-          <p class="pn-body">見出しの余白をもう少し広げたい。スマホでは詰まって見える。</p>
+          <p class="pn-body pn-body--view">見出しの余白をもう少し広げたい。スマホでは詰まって見える。</p>
           <div class="pn-meta">ななしさん｜5分前</div>
           <div class="pn-row">
             <button type="button" class="pn-btn pn-btn--primary" data-icon="check">完了</button>
@@ -258,7 +257,7 @@
     <div class="row">
       <div class="pn-list" role="region" aria-label="メモの一覧">
         <ol>
-          <li><button type="button" class="pn-item"><span class="pn-head"><span class="pn-tag" data-status="open">1 未完了</span><span class="pn-kind" data-icon="wrench">修正</span><span class="pn-stars">★★★</span></span><span class="pn-line">ロゴの位置が 2px ずれている</span><span class="pn-meta pn-line">ななしさん｜たった今</span></button></li>
+          <li><button type="button" class="pn-item"><span class="pn-head"><span class="pn-tag" data-status="open">1<span class="pn-sr">、未完了</span></span><span class="pn-kind" data-icon="wrench">修正</span><span class="pn-stars">★★★</span></span><span class="pn-line">ロゴの位置が 2px ずれている</span><span class="pn-meta pn-line">ななしさん｜たった今</span></button></li>
           <li><button type="button" class="pn-item"><span class="pn-head"><span class="pn-tag" data-status="done" data-icon="check">2 完了</span></span><span class="pn-line">見出しの文言を確定した</span><span class="pn-meta pn-line">ななしさん｜2026-11-01</span></button></li>
         </ol>
       </div>

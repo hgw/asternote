@@ -51,7 +51,7 @@ The page in these images is fictional and was made for this explanation.
 Install it from GitHub with npm. Specify the version with a tag.
 
 ```sh
-npm i github:hgw/asternote#v0.11.0
+npm i github:hgw/asternote#v0.11.1
 ```
 
 `asternote-copy` copies `asternote.js` and `api.php` to the public directory.
@@ -134,7 +134,7 @@ Load `asternote.js` from jsDelivr. Only `api.php` and the config file go on your
 3. Add the script tag to the page
 
    ```html
-   <script src="https://cdn.jsdelivr.net/gh/hgw/asternote@v0.11.0/asternote.js"
+   <script src="https://cdn.jsdelivr.net/gh/hgw/asternote@v0.11.1/asternote.js"
            data-endpoint="/asternote/api.php"
            data-project="myproject" defer></script>
    ```
