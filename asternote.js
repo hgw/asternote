@@ -463,6 +463,10 @@
       '.pn-island{display:flex;flex-wrap:nowrap;gap:6px;align-items:center;min-width:0;height:46px;padding:6px}',
       '.pn-island>*{flex:none}',
       '.pn-island .pn-seg{flex-wrap:nowrap}',
+      // 狭い画面では、一覧のボタンをアイコンだけにし、すき間を詰める。360px の画面まで収まる
+      // 文字は見えなくするだけで残す。読み上げではボタンの名前になる
+      '@media (max-width:420px){.pn-btn--collapse{padding:0 8px}.pn-btn--collapse>span:not(.pn-icon){position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}}',
+      '@media (max-width:380px){.pn-bar{gap:4px}.pn-island{gap:4px}.pn-island .pn-check{padding:0 2px}}',
       '.pn-close{display:inline-flex;flex:none;align-items:center;justify-content:center;width:36px;height:36px;padding:0;border-radius:999px;color:var(--pn-fg);cursor:pointer}',
       '.pn-close:hover{background:var(--pn-subtle)}',
       // ボタンは文字で分かるので、枠のコントラストには頼らない
@@ -547,7 +551,7 @@
 
     // キーボードで押したとき（click の detail が 0）は、置く位置を十字のカーソルで選べるようにする
     var addBtn = h('button', { type: 'button', class: 'pn-btn pn-btn--primary', onclick: function (e) { setPlacing(!state.placing, { keyboard: e.detail === 0 }); } }, label('plus', 'メモ'));
-    var listBtn = h('button', { type: 'button', class: 'pn-btn', 'aria-expanded': 'false', onclick: toggleList }, label('list', '一覧'));
+    var listBtn = h('button', { type: 'button', class: 'pn-btn pn-btn--collapse', title: '一覧', 'aria-expanded': 'false', onclick: toggleList }, label('list', '一覧'));
     // 完了したメモは、チェックを入れたときだけ表示する。選んだ状態はブラウザに保存する
     state.showDone = ls.get(KEY + 'showDone') === '1';
     var showDoneBox = h('input', { type: 'checkbox' });
@@ -613,6 +617,7 @@
       }
       if (isShortcut(e)) {
         e.preventDefault();
+        if (cancelGesture) cancelGesture(); // 範囲を引いている途中やピンのドラッグ中なら、先に取り消す
         onShortcut();
         return;
       }
@@ -694,12 +699,14 @@
 
   // 案内の文。今の置き方と段階に合わせる。キーボードで操作しているときは、キーの案内も足す
   function updateHint() {
+    bar.hint.title = '';
     if (!state.placing) { bar.hint.textContent = ''; return; }
     var text = state.moveTarget ? '移動先をクリック'
       : state.placeMode === 'area' ? (state.corner ? '2つ目の角をクリック' : '1つ目の角をクリック')
       : 'クリックで点、ドラッグで範囲を指定';
     if (cursorEl) text += '。矢印キーで動かし、Enter で決定';
     bar.hint.textContent = text;
+    bar.hint.title = text;
   }
 
   // 位置を決める。クリック、ドラッグの終わり、キーボードの Enter のすべてがここを通る
@@ -907,6 +914,8 @@
   // 書きかけの内容がある編集中の吹き出しは、うっかり消えないように閉じない
   function onOutsidePointerDown(e) {
     var t = e.target;
+    // バーを押したときは、押し終わるまでバーを隠さない。吹き出しが閉じた拍子にバーが隠れると、押したボタンに届かないため
+    if (bar.contains(t)) holdBar();
     // 設定は、バーと設定の外を押したら閉じる
     if (isOpen(settingsPanel) && !settingsPanel.contains(t) && !bar.contains(t)) closeSettings(false);
     if (!popover || state.placing) return;
@@ -1109,6 +1118,8 @@
   function placePopover(x, y) {
     var root = document.documentElement;
     var minTop = window.scrollY + 8;
+    // バーが上の辺にあるときは、その下から置く。下の辺のバーは、--asternote-offset で避ける
+    if (prefs.edge === 'top' && bar && !bar.hidden) minTop = window.scrollY + bar.getBoundingClientRect().bottom + 8;
     var maxBottom = window.scrollY + root.clientHeight - (parseFloat(root.style.getPropertyValue('--asternote-offset')) || 0) - 8;
     // 空いている高さより高いときは、中をスクロールさせる
     popover.style.maxHeight = Math.max(120, maxBottom - minTop) + 'px';
@@ -1427,7 +1438,8 @@
     }
     var reach = function (el) { return (parseFloat(getComputedStyle(el).bottom) || 0) + el.offsetHeight; };
     var offset = reach(bar);
-    if (listPanel && !listPanel.hidden) offset = Math.max(offset, reach(listPanel));
+    if (isOpen(listPanel)) offset = Math.max(offset, reach(listPanel));
+    if (isOpen(settingsPanel)) offset = Math.max(offset, reach(settingsPanel));
     style.setProperty('--asternote-offset', Math.round(offset) + 'px');
   }
 
@@ -1435,10 +1447,25 @@
   var EDGE_GAP = 12;
   var isOpen = function (el) { return !!el && !el.hidden; };
 
-  // バーを出すかどうか。「バーを隠す」がオンのときは、操作の途中だけ出す
+  // バーを出すかどうか。「バーを隠す」がオンのときは、操作の途中と、エラーを出している間だけ出す
+  var barHeld = false;
+  var errorUntil = 0;
+  // 押し終わるまでバーを出しておく。click は pointerup のあとに届くので、そのあとで外す
+  function holdBar() {
+    if (barHeld) return;
+    barHeld = true;
+    var release = function () {
+      document.removeEventListener('pointerup', release, true);
+      document.removeEventListener('pointercancel', release, true);
+      setTimeout(function () { barHeld = false; updateBarVisibility(); }, 0);
+    };
+    document.addEventListener('pointerup', release, true);
+    document.addEventListener('pointercancel', release, true);
+  }
   function updateBarVisibility() {
     if (!bar) return;
-    var show = state.enabled && (!prefs.hideBar || state.placing || !!popover || isOpen(listPanel) || isOpen(settingsPanel));
+    var show = state.enabled && (!prefs.hideBar || state.placing || !!popover || isOpen(listPanel) || isOpen(settingsPanel) ||
+      barHeld || Date.now() < errorUntil);
     if (bar.hidden !== !show) {
       bar.hidden = !show;
       layoutBar();
@@ -1507,7 +1534,9 @@
     var vw = root.clientWidth;
     var vh = root.clientHeight;
     var gaps = { left: r.left, right: vw - r.right, top: r.top, bottom: vh - r.bottom };
-    var edge = EDGES.reduce(function (a, b) { return gaps[b] < gaps[a] ? b : a; });
+    // 横幅いっぱいに近いバーは、左右の辺との距離がいつも小さい。上か下の辺だけから選ぶ
+    var candidates = r.width >= vw - (EDGE_GAP + CORNER_SNAP) * 2 ? ['top', 'bottom'] : EDGES;
+    var edge = candidates.reduce(function (a, b) { return gaps[b] < gaps[a] ? b : a; });
     var horizontal = edge === 'top' || edge === 'bottom';
     var start = horizontal ? r.left : r.top;
     var range = (horizontal ? vw - r.width : vh - r.height) - EDGE_GAP * 2;
@@ -1543,7 +1572,12 @@
     var root = document.documentElement;
     try { grip.setPointerCapture(e.pointerId); } catch (err) { /* 捕捉できなくても動かせる */ }
     bar.classList.add('is-moving');
+    var startX = e.clientX;
+    var startY = e.clientY;
+    var moved = false;
     var move = function (ev) {
+      if (!moved && Math.abs(ev.clientX - startX) < 4 && Math.abs(ev.clientY - startY) < 4) return;
+      moved = true;
       var s = bar.style;
       s.right = s.bottom = 'auto';
       s.left = Math.round(Math.min(Math.max(0, ev.clientX - dx), root.clientWidth - bar.offsetWidth)) + 'px';
@@ -1556,7 +1590,7 @@
       grip.removeEventListener('pointerup', end);
       grip.removeEventListener('pointercancel', end);
       bar.classList.remove('is-moving');
-      if (ev.type === 'pointercancel') { layoutBar(); return; }
+      if (ev.type === 'pointercancel' || !moved) { layoutBar(); return; }
       var p = edgeFromRect(bar.getBoundingClientRect());
       setBarPosition(p.edge, p.t);
     };
@@ -1570,7 +1604,8 @@
   function isShortcut(e) {
     if (!prefs.key || e.ctrlKey || e.metaKey || e.altKey || e.repeat) return false;
     if (!e.key || e.key.length !== 1 || e.key.toLowerCase() !== prefs.keyChar) return false;
-    var t = e.target;
+    // Shadow DOM の中の入力欄では、e.target が外側の要素になる。実際に押された要素で確かめる
+    var t = (e.composedPath && e.composedPath()[0]) || e.target;
     return !(t && (/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || t.isContentEditable));
   }
 
@@ -1611,7 +1646,10 @@
     if (offsetObserver) offsetObserver.unobserve(settingsPanel);
     updateBarVisibility();
     layoutBar();
-    if ((focusBack || hadFocus) && !bar.hidden) bar.settingsBtn.focus({ preventScroll: true });
+    if ((focusBack || hadFocus) && !bar.hidden) {
+      // 置くモードに入るときは、設定ボタンが隠れている。そのときは「戻る」に移す
+      (bar.settingsBtn.hidden ? bar.addBtn : bar.settingsBtn).focus({ preventScroll: true });
+    }
   }
 
   function buildSettings() {
@@ -1758,8 +1796,15 @@
     return withTime ? date + ' ' + p(d.getHours()) + ':' + p(d.getMinutes()) : date;
   }
 
+  // 「バーを隠す」がオンでも、エラーは 8 秒バーを出して見せる。案内の欄は省略されることがあるので、全文を title にも入れる
+  var ERROR_MS = 8000;
   function showError(prefix, err) {
-    bar.hint.textContent = prefix + ': ' + (err && err.message ? err.message : err);
+    var text = prefix + ': ' + (err && err.message ? err.message : err);
+    bar.hint.textContent = text;
+    bar.hint.title = text;
+    errorUntil = Date.now() + ERROR_MS;
+    updateBarVisibility();
+    setTimeout(updateBarVisibility, ERROR_MS + 50);
   }
 
   // 保存に失敗したら、一覧を読み直す。ほかの人が消したメモのピンが残り続けないようにする
