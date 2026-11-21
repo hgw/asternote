@@ -25,7 +25,7 @@
 GitHub から npm で入れる。バージョンはタグで指定する。
 
 ```sh
-npm i github:hgw/asternote#v0.8.0
+npm i github:hgw/asternote#v0.8.1
 ```
 
 `asternote-copy` で、`asternote.js` と `api.php` を公開ディレクトリに複製する。
@@ -106,7 +106,7 @@ require __DIR__ . '/asternote/asternote.php';
 3. ページに script タグを足す
 
    ```html
-   <script src="https://cdn.jsdelivr.net/gh/hgw/asternote@v0.8.0/asternote.js"
+   <script src="https://cdn.jsdelivr.net/gh/hgw/asternote@v0.8.1/asternote.js"
            data-endpoint="/asternote/api.php"
            data-project="myproject" defer></script>
    ```
@@ -267,7 +267,7 @@ ASTERNOTE_AUTH="user:pass" node export.mjs \
 v0.8.0 で、名前を pin-notes から Asternote に変えた。
 旧名の属性、定数、コマンドは読まない。導入済みの案件は、次の手順で書き換える。
 
-- npm の指定を `github:hgw/asternote#v0.8.0` に変える
+- npm の指定を `github:hgw/asternote#v0.8.1` に変える
 - `package.json` のコマンドを `asternote-copy` と `asternote-export` に変える
 - 複製先のディレクトリと `.gitignore` を、必要なら `asternote` に変える
 - 設定ファイルの名前を `asternote.config.php` に変える
