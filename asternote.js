@@ -1,26 +1,26 @@
 /*!
- * pin-notes
+ * Asternote
  * プレビュー画面にピンを立ててメモを残すツール。依存なし。
  *
  * 使い方:
- *   <script src="/pin-notes/pin-notes.js"
- *           data-endpoint="/pin-notes/api.php"
+ *   <script src="/asternote/asternote.js"
+ *           data-endpoint="/asternote/api.php"
  *           data-project="myproject" defer></script>
  *
  * data-endpoint を省略すると、ブラウザの localStorage に保存する（手元での確認用）。
  * data-endpoint があれば常に api.php に保存する。失敗してもエラーを出すだけで、保存先は切り替えない。
- * data-ui="none" にすると、起動ボタンを出さない。window.PinNotes の API で操作する。
+ * data-ui="none" にすると、起動ボタンを出さない。window.Asternote の API で操作する。
  * data-default="on" にすると、初めて開いた人にもメモを表示する。表示・非表示を選んだあとは、その選択を優先する。
  * メモは、クリックで点、ドラッグで四角の範囲として残せる。打ったピンはドラッグで動かせる。
  * ドラッグを使わずに、2つの角のクリックで範囲を指定したり、吹き出しの「移動」とクリックでピンを動かしたりもできる。
  * キーボードでは、置く位置を十字のカーソルで示す。矢印キーで動かし、Enter で決める。
  * 完了したメモは、バーの「完了も表示」にチェックを入れたときだけ表示する。
- * data-pin-notes-ignore 属性を付けた要素の中では、メモを置くクリックを横取りしない。
- * 表示中は html に --pin-notes-offset を設定する。値は画面下端からバーや一覧の上端までの高さで、余白は含まない。
+ * data-asternote-ignore 属性を付けた要素の中では、メモを置くクリックを横取りしない。
+ * 表示中は html に --asternote-offset を設定する。値は画面下端からバーや一覧の上端までの高さで、余白は含まない。
  * 左下に置くほかの部品は、この値に余白を足した分だけ上に逃げれば重ならない。
- * 色と角丸は、html などに CSS 変数 --pin-notes-primary などを書くと上書きできる。一覧は injectStyle() にある。
+ * 色と角丸は、html などに CSS 変数 --asternote-primary などを書くと上書きできる。一覧は injectStyle() にある。
  *
- * MIT License. https://github.com/hgw/pin-notes
+ * MIT License. https://github.com/hgw/asternote
  *
  * アイコンは Lucide v1.76.0 の SVG を使っている。https://lucide.dev
  * plus、x、arrow-left、move、trash-2、check は Feather 由来で MIT License、ほかは ISC License。
@@ -146,7 +146,7 @@
     get: function (k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
     set: function (k, v) { try { localStorage.setItem(k, v); } catch (e) { /* 保存できなくても続ける */ } },
   };
-  var KEY = 'pin-notes:' + config.project + ':';
+  var KEY = 'asternote:' + config.project + ':';
 
   var pagePath = function () {
     var p = location.pathname.replace(/index\.html$/, '');
@@ -162,7 +162,7 @@
       return fetch(config.endpoint, {
         method: 'POST',
         credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json', 'X-Pin-Notes': '1' },
+        headers: { 'Content-Type': 'application/json', 'X-Asternote': '1' },
         body: JSON.stringify(Object.assign({ project: config.project }, payload)),
       }).then(parse);
     };
@@ -176,7 +176,7 @@
       if ((res.headers.get('Content-Type') || '').indexOf('application/json') === -1) return Promise.reject(fail(res));
       return res.json().catch(function () { throw fail(res); }).then(function (data) {
         if (!res.ok) throw fail(res, data && data.error);
-        var warning = res.headers.get('X-Pin-Notes-Warning');
+        var warning = res.headers.get('X-Asternote-Warning');
         if (warning === 'corrupt-data') {
           setNotice('保存データが壊れているため、空として表示しています。管理者に連絡してください', 'corrupt');
         } else if (warning === 'recovered-from-corrupt-data') {
@@ -187,7 +187,7 @@
     }
     return {
       list: function (page) {
-        // WordPress の admin-ajax.php?action=pin_notes のように、URL にすでに ? があれば & でつなぐ
+        // WordPress の admin-ajax.php?action=asternote のように、URL にすでに ? があれば & でつなぐ
         var q = (config.endpoint.indexOf('?') === -1 ? '?' : '&') + 'project=' + encodeURIComponent(config.project) + '&page=' + encodeURIComponent(page);
         return fetch(config.endpoint + q, { credentials: 'same-origin', cache: 'no-store' })
           .then(parse)
@@ -244,7 +244,7 @@
   }
 
   // ---------- 位置の記録と復元 ----------
-  var isOwn = function (el) { return el && el.closest && el.closest('[data-pin-notes], [data-pin-notes-ignore]'); };
+  var isOwn = function (el) { return el && el.closest && el.closest('[data-asternote], [data-asternote-ignore]'); };
 
   // api.php の上限と同じ値にする。セレクターは ASCII だけなので文字数の数え方は一致する
   var MAX_SELECTOR = 500;
@@ -267,7 +267,7 @@
     return parts.join(' > ');
   }
 
-  // 画面上の点にあるページの要素を返す。ツール自身の UI と、data-pin-notes-ignore の中は飛ばす
+  // 画面上の点にあるページの要素を返す。ツール自身の UI と、data-asternote-ignore の中は飛ばす
   // 画面の外の点では要素を探せないので、探すときだけ点を画面内に寄せる。位置の比率は元の点で計算する
   function hitElement(cx, cy) {
     var vw = document.documentElement.clientWidth, vh = window.innerHeight;
@@ -379,20 +379,21 @@
   }
 
   function injectStyle() {
-    // 色と角丸。導入先は --pin-notes-* で上書きできる。初期値は WCAG 2.2 AA を満たす
+    // 色と角丸。導入先は --asternote-* で上書きできる。初期値は WCAG 2.2 AA を満たす
     // 文字は背景に対して 4.5:1 以上、入力欄の枠とフォーカスリングは 3:1 以上。変えるときもこの比を保つ
+    // 内部のクラス名と CSS 変数の接頭辞 pn- は、旧名の頭文字。導入先には公開しないので、名前を変えても残している
     var vars = [
       ['fg', '#09090b'], ['muted', '#52525b'], ['bg', '#fff'], ['subtle', '#f4f4f5'], ['subtle-hover', '#e4e4e7'],
       ['border', '#e4e4e7'], ['input', '#71717a'], ['primary', '#047857'], ['primary-fg', '#fff'], ['ring', '#047857'],
       ['danger', '#b91c1c'], ['open', '#c2410c'], ['done', '#52525b'], ['star', '#b45309'], ['radius', '8px'],
-    ].map(function (v) { return '--pn-' + v[0] + ':var(--pin-notes-' + v[0] + ',' + v[1] + ')'; }).join(';');
+    ].map(function (v) { return '--pn-' + v[0] + ':var(--asternote-' + v[0] + ',' + v[1] + ')'; }).join(';');
     var css = [
-      '[data-pin-notes]{' + vars + ';font:13px/1.5 system-ui,sans-serif;letter-spacing:0;text-transform:none;color:var(--pn-fg);box-sizing:border-box}',
-      '[data-pin-notes] *,[data-pin-notes] *::before,[data-pin-notes] *::after{box-sizing:border-box}',
+      '[data-asternote]{' + vars + ';font:13px/1.5 system-ui,sans-serif;letter-spacing:0;text-transform:none;color:var(--pn-fg);box-sizing:border-box}',
+      '[data-asternote] *,[data-asternote] *::before,[data-asternote] *::after{box-sizing:border-box}',
       // display を指定した要素でも hidden 属性で隠れるようにする。指定すると UA の display:none より優先されるため
-      '[data-pin-notes][hidden],[data-pin-notes] [hidden]{display:none!important}',
+      '[data-asternote][hidden],[data-asternote] [hidden]{display:none!important}',
       // ピンのフォーカスリングは白の縁を挟み、どの背景でも見えるようにする
-      '[data-pin-notes] :focus-visible,.pn-pin:focus-visible{outline:2px solid var(--pn-ring);outline-offset:2px}',
+      '[data-asternote] :focus-visible,.pn-pin:focus-visible{outline:2px solid var(--pn-ring);outline-offset:2px}',
       '.pn-pin:focus-visible{outline:none;box-shadow:0 0 0 2px #fff,0 0 0 4px var(--pn-ring)}',
       '.pn-icon{display:inline-flex;flex:none;line-height:0}',
       '.pn-icon svg{width:16px;height:16px}',
@@ -400,7 +401,7 @@
       // ピンは押せる大きさの基準に合わせて 24px 以上にする
       '.pn-pin{position:absolute;display:inline-flex;align-items:center;justify-content:center;gap:2px;min-width:24px;height:24px;margin:-24px 0 0 -2px;padding:0 6px;border:2px solid #fff;border-radius:12px 12px 12px 3px;color:#fff;font:600 12px/1 system-ui,sans-serif;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.4);touch-action:none;white-space:nowrap}',
       '.pn-pin .pn-icon svg{width:12px;height:12px;stroke-width:2.5}',
-      STATUS.map(function (x) { var a = '[data-status="' + x.key + '"]'; return '[data-pin-notes] ' + a + ',[data-pin-notes]' + a + '{--pn-c:var(--pn-' + x.key + ')}'; }).join(''),
+      STATUS.map(function (x) { var a = '[data-status="' + x.key + '"]'; return '[data-asternote] ' + a + ',[data-asternote]' + a + '{--pn-c:var(--pn-' + x.key + ')}'; }).join(''),
       '.pn-pin,.pn-tag{background:var(--pn-c)}',
       '.pn-area{background:color-mix(in srgb,var(--pn-c) 10%,transparent)}',
       // 見失ったピンは点線の枠だけで示す。半透明にすると番号のコントラストが足りなくなる
@@ -417,8 +418,8 @@
       '.pn-draft{position:fixed;z-index:2147483000;border:2px dashed var(--pn-primary);border-radius:4px;background:color-mix(in srgb,var(--pn-primary) 8%,transparent);pointer-events:none}',
       'html.pn-placing{touch-action:none;user-select:none}',
       'html.pn-placing,html.pn-placing *{cursor:crosshair!important}',
-      'html.pn-placing [data-pin-notes],html.pn-placing [data-pin-notes] *,html.pn-placing [data-pin-notes-ignore],html.pn-placing [data-pin-notes-ignore] *{cursor:auto!important}',
-      'html.pn-placing [data-pin-notes] button,html.pn-placing [data-pin-notes-ignore] button,html.pn-placing [data-pin-notes-ignore] a{cursor:pointer!important}',
+      'html.pn-placing [data-asternote],html.pn-placing [data-asternote] *,html.pn-placing [data-asternote-ignore],html.pn-placing [data-asternote-ignore] *{cursor:auto!important}',
+      'html.pn-placing [data-asternote] button,html.pn-placing [data-asternote-ignore] button,html.pn-placing [data-asternote-ignore] a{cursor:pointer!important}',
       // 浮いている面の枠は飾りなので薄くてよい
       '.pn-island,.pn-pop,.pn-list,.pn-close{border:1px solid var(--pn-border);border-radius:var(--pn-radius);background:var(--pn-bg);box-shadow:0 8px 16px rgba(0,0,0,.12)}',
       '.pn-bar{position:fixed;left:12px;bottom:12px;z-index:2147483001;display:flex;align-items:center;gap:8px;max-width:calc(100vw - 24px)}',
@@ -478,12 +479,12 @@
       '.pn-empty{margin:0;padding:10px;color:var(--pn-muted)}',
       '.pn-launch{position:fixed;left:12px;bottom:12px;z-index:2147483001;box-shadow:0 4px 8px rgba(0,0,0,.15)}',
     ].join('\n');
-    document.head.appendChild(h('style', { 'data-pin-notes-style': '' }, [document.createTextNode(css)]));
+    document.head.appendChild(h('style', { 'data-asternote-style': '' }, [document.createTextNode(css)]));
   }
 
   function build() {
     injectStyle();
-    layer = h('div', { class: 'pn-layer', 'data-pin-notes': '' });
+    layer = h('div', { class: 'pn-layer', 'data-asternote': '' });
     document.body.appendChild(layer);
 
     // キーボードで押したとき（click の detail が 0）は、置く位置を十字のカーソルで選べるようにする
@@ -514,7 +515,7 @@
       }, [document.createTextNode(m[1])]));
     });
     var island = h('div', { class: 'pn-island' }, [addBtn, modeSeg, listBtn, showDoneLabel, hint, notice]);
-    bar = h('div', { class: 'pn-bar', 'data-pin-notes': '', role: 'region', 'aria-label': 'メモ', hidden: '' }, [island, closeBtn]);
+    bar = h('div', { class: 'pn-bar', 'data-asternote': '', role: 'region', 'aria-label': 'メモ', hidden: '' }, [island, closeBtn]);
     bar.addBtn = addBtn;
     bar.listBtn = listBtn;
     bar.showDone = showDoneLabel;
@@ -525,7 +526,7 @@
     document.body.appendChild(bar);
 
     if (config.ui !== 'none') {
-      launcher = h('button', { type: 'button', class: 'pn-btn pn-launch', 'data-pin-notes': '', onclick: function () { api.toggle(); } }, label('sticky-note', 'メモ'));
+      launcher = h('button', { type: 'button', class: 'pn-btn pn-launch', 'data-asternote': '', onclick: function () { api.toggle(); } }, label('sticky-note', 'メモ'));
       document.body.appendChild(launcher);
     }
 
@@ -676,7 +677,7 @@
   function cornerClient() { return { x: state.corner.px - window.scrollX, y: state.corner.py - window.scrollY }; }
   function drawCorner(cx, cy) {
     if (!cornerEl) {
-      cornerEl = h('div', { class: 'pn-draft', 'data-pin-notes': '' });
+      cornerEl = h('div', { class: 'pn-draft', 'data-asternote': '' });
       document.body.appendChild(cornerEl);
     }
     var c = cornerClient();
@@ -706,7 +707,7 @@
   function showCursor() {
     if (!cursorEl) {
       cursorEl = h('div', {
-        class: 'pn-cursor', 'data-pin-notes': '', tabindex: '-1', role: 'application',
+        class: 'pn-cursor', 'data-asternote': '', tabindex: '-1', role: 'application',
         'aria-label': 'メモを置く位置。矢印キーで動かし、Enter で決定。Shift と矢印キーで大きく動く',
       });
       cursorEl.addEventListener('keydown', onCursorKey);
@@ -791,7 +792,7 @@
       var s0 = startClient();
       if (!draft && Math.hypot(last.x - s0.x, last.y - s0.y) < DRAG_THRESHOLD) return;
       if (!draft) {
-        draft = h('div', { class: 'pn-draft', 'data-pin-notes': '' });
+        draft = h('div', { class: 'pn-draft', 'data-asternote': '' });
         document.body.appendChild(draft);
       }
       drawDraft();
@@ -892,7 +893,7 @@
       pin.anchorEl = el;
       if (isArea(note)) {
         // 範囲の枠。ページの操作を妨げないよう、枠そのものはクリックを受けない
-        pin.areaEl = h('div', { class: 'pn-area', 'data-pin-notes': '', 'data-status': st.key });
+        pin.areaEl = h('div', { class: 'pn-area', 'data-asternote': '', 'data-status': st.key });
         layer.appendChild(pin.areaEl);
       }
       pin.addEventListener('pointerdown', function (e) { startPinDrag(e, pin); });
@@ -1064,7 +1065,7 @@
     var titleId = 'pn-title-' + (++popoverSeq);
     // 閉じるボタンは、バーと同じく × のアイコンだけにして右上に置く。編集中は「キャンセル」と同じ動きになる
     var close = h('button', { type: 'button', class: 'pn-x', 'aria-label': '閉じる', title: '閉じる', onclick: closePopover }, [iconEl('x')]);
-    popover = h('div', { class: 'pn-pop', 'data-pin-notes': '', role: 'dialog', 'aria-labelledby': titleId, tabindex: '-1' },
+    popover = h('div', { class: 'pn-pop', 'data-asternote': '', role: 'dialog', 'aria-labelledby': titleId, tabindex: '-1' },
       [h('h2', { class: 'pn-title', id: titleId, text: title }), close].concat(children));
     popover.returnTo = returnTo || (document.activeElement !== document.body ? document.activeElement : null);
     document.body.appendChild(popover);
@@ -1088,7 +1089,7 @@
     // 上限は api.php と同じ。超えた分が黙って切られないように、入力の時点で止める
     var body = h('textarea', { placeholder: '決まったこと、直したいこと', 'aria-label': '本文', maxlength: '2000' });
     body.value = note ? note.body : '';
-    var author = h('input', { type: 'text', placeholder: ANONYMOUS, 'aria-label': '名前', autocomplete: 'name', maxlength: '40', value: (note && note.author) || ls.get('pin-notes:author') || '' });
+    var author = h('input', { type: 'text', placeholder: ANONYMOUS, 'aria-label': '名前', autocomplete: 'name', maxlength: '40', value: (note && note.author) || ls.get('asternote:author') || '' });
     // 種類と重要度は、押して選ぶボタンの並び。選んでいるものは aria-pressed で示す
     var segment = function (label, options, current) {
       var group = h('div', { class: 'pn-seg', role: 'group', 'aria-label': label });
@@ -1135,7 +1136,7 @@
         if (!text) { error.textContent = '本文を入力してください'; body.focus(); return; }
         setBusy(true, '保存しています');
         error.textContent = '';
-        ls.set('pin-notes:author', author.value.trim());
+        ls.set('asternote:author', author.value.trim());
         // 完了かどうかは閲覧の吹き出しで切り替える。新しいメモは api.php が未完了で作る
         var fields = { body: text, author: author.value.trim(), kind: kind.value, importance: importance.value };
         var p = note
@@ -1294,7 +1295,7 @@
 
   function toggleList() {
     if (!listPanel) {
-      listPanel = h('div', { class: 'pn-list', 'data-pin-notes': '', role: 'region', 'aria-label': 'メモの一覧', id: 'pn-list', hidden: '' });
+      listPanel = h('div', { class: 'pn-list', 'data-asternote': '', role: 'region', 'aria-label': 'メモの一覧', id: 'pn-list', hidden: '' });
       bar.listBtn.setAttribute('aria-controls', 'pn-list');
       document.body.appendChild(listPanel);
       if (offsetObserver) offsetObserver.observe(listPanel);
@@ -1312,13 +1313,13 @@
   function updateOffset() {
     var style = document.documentElement.style;
     if (!state.enabled || !bar || bar.hidden) {
-      style.removeProperty('--pin-notes-offset');
+      style.removeProperty('--asternote-offset');
       return;
     }
     var reach = function (el) { return (parseFloat(getComputedStyle(el).bottom) || 0) + el.offsetHeight; };
     var offset = reach(bar);
     if (listPanel && !listPanel.hidden) offset = Math.max(offset, reach(listPanel));
-    style.setProperty('--pin-notes-offset', Math.round(offset) + 'px');
+    style.setProperty('--asternote-offset', Math.round(offset) + 'px');
   }
 
   function renderList() {
@@ -1474,7 +1475,7 @@
     onChange: function (fn) { listeners.push(fn); },
     config: config,
   };
-  window.PinNotes = api;
+  window.Asternote = api;
 
   function start() {
     build();
@@ -1486,7 +1487,7 @@
     else if (!queued && saved === null && config.defaultOn) api.enable(false);
     resolveReady();
     // 準備前の操作が済んでから ready を知らせる
-    ready.then(function () { document.dispatchEvent(new CustomEvent('pin-notes:ready')); });
+    ready.then(function () { document.dispatchEvent(new CustomEvent('asternote:ready')); });
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
   else start();

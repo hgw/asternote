@@ -1,5 +1,5 @@
 # 案件ごとの設定とメモのデータは入れない
-pin-notes.config.php
+asternote.config.php
 *.json.corrupt-*
 data/
 
