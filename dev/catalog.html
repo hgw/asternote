@@ -1,0 +1,359 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Asternote カタログ</title>
+<!--
+  開発用の見本ページ。デザイントークン、アイコン、部品を1枚で見る。
+  リポジトリのルートで php -S 127.0.0.1:8767 などを動かし、/dev/catalog.html を開く。
+  CSS は asternote.js が入れるものをそのまま使う。トークンの初期値とアイコンは asternote.js の文字列から読み取る。
+  部品の HTML は asternote.js の build() や吹き出しの組み立てをまねて書いている。部品を変えたら、ここも合わせる。
+-->
+<style>
+  :root { --cat-fg: #18181b; --cat-muted: #52525b; --cat-line: #e4e4e7; --cat-bg: #fafafa; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--cat-bg); color: var(--cat-fg); font: 14px/1.6 system-ui, sans-serif; }
+  header { padding: 32px 24px 8px; max-width: 1080px; margin: 0 auto; }
+  header h1 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 22px; }
+  .logo svg { display: block; width: 32px; height: 32px; }
+  header p { margin: 4px 0 0; color: var(--cat-muted); }
+  nav { position: sticky; top: 0; z-index: 10; background: var(--cat-bg); border-bottom: 1px solid var(--cat-line); }
+  nav ul { display: flex; flex-wrap: wrap; gap: 4px 16px; max-width: 1080px; margin: 0 auto; padding: 10px 24px; list-style: none; }
+  nav a { color: var(--cat-muted); text-decoration: none; }
+  nav a:hover { color: var(--cat-fg); }
+  main { max-width: 1080px; margin: 0 auto; padding: 0 24px 80px; }
+  section { padding-top: 32px; }
+  h2 { margin: 0 0 4px; font-size: 18px; }
+  h3 { margin: 24px 0 8px; font-size: 13px; color: var(--cat-muted); font-weight: 600; }
+  .lead { margin: 0 0 12px; color: var(--cat-muted); }
+  .stage { padding: 20px; border: 1px solid var(--cat-line); border-radius: 8px; background: #fff; }
+  .stage--gray { background: repeating-conic-gradient(#f4f4f5 0 25%, #fff 0 50%) 0 0 / 16px 16px; }
+  .row { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; }
+  .cell { display: grid; gap: 6px; justify-items: start; }
+  .cap { color: var(--cat-muted); font-size: 12px; }
+  code { font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; }
+  table { width: 100%; border-collapse: collapse; background: #fff; border: 1px solid var(--cat-line); border-radius: 8px; overflow: hidden; }
+  th, td { padding: 8px 12px; border-bottom: 1px solid var(--cat-line); text-align: left; vertical-align: middle; }
+  th { font-size: 12px; color: var(--cat-muted); font-weight: 600; background: #fafafa; }
+  .sw { display: inline-block; width: 40px; height: 24px; border-radius: 4px; border: 1px solid rgba(0,0,0,.12); vertical-align: middle; }
+  .ok { color: #166534; } .ng { color: #b91c1c; font-weight: 600; }
+  .icons { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; }
+  .icon { display: grid; justify-items: center; gap: 6px; padding: 14px 8px; border: 1px solid var(--cat-line); border-radius: 8px; background: #fff; }
+  .icon svg { width: 24px; height: 24px; }
+  /* 固定や絶対配置の部品を、見本の中に並べる */
+  .static .pn-bar, .static .pn-pop, .static .pn-list, .static .pn-launch, .static .cell > .pn-pin, .static .pn-cursor { position: relative !important; left: auto !important; top: auto !important; bottom: auto !important; }
+  .static .cell > .pn-pin, .static .pn-cursor { margin: 0 !important; }
+  .static .pn-pop { width: 300px; }
+  .placing-hint .pn-hint { min-width: 17em; }
+  .areabox { position: relative; width: 220px; height: 120px; }
+  .areabox .pn-area { left: 10px; top: 24px; right: 20px; bottom: 10px; }
+  .areabox .pn-pin { left: 10px; top: 24px; }
+</style>
+</head>
+<body>
+<header>
+  <h1><span id="logo" class="logo"></span>Asternote カタログ</h1>
+  <p id="meta">読み込んでいます…</p>
+</header>
+<nav><ul>
+  <li><a href="#tokens">トークン</a></li>
+  <li><a href="#icons">アイコン</a></li>
+  <li><a href="#buttons">ボタン</a></li>
+  <li><a href="#controls">選択の部品</a></li>
+  <li><a href="#tags">ラベル</a></li>
+  <li><a href="#pins">ピンと範囲</a></li>
+  <li><a href="#bar">バー</a></li>
+  <li><a href="#popover">吹き出し</a></li>
+  <li><a href="#list">一覧</a></li>
+</ul></nav>
+<main class="static">
+
+<section id="tokens">
+  <h2>トークン</h2>
+  <p class="lead">導入先は <code>--asternote-*</code> で上書きできる。比は白の背景に対するコントラスト。キーカラーの文字だけは、キーカラーの背景に対する比。</p>
+  <table>
+    <thead><tr><th>CSS 変数</th><th>見本</th><th>初期値</th><th>コントラスト</th><th>基準</th></tr></thead>
+    <tbody id="token-rows"></tbody>
+  </table>
+</section>
+
+<section id="icons">
+  <h2>アイコン</h2>
+  <p class="lead">Lucide の SVG を、使う分だけ asternote.js に埋め込んでいる。</p>
+  <div class="icons" id="icon-grid"></div>
+</section>
+
+<section id="buttons">
+  <h2>ボタン</h2>
+  <p class="lead">ホバーとフォーカスは、実物を操作して確かめる。この見本では、Tab で移動するとフォーカスリングが見える。</p>
+  <div class="stage" data-asternote>
+    <div class="row">
+      <div class="cell"><button type="button" class="pn-btn" data-icon="list">一覧</button><span class="cap">.pn-btn</span></div>
+      <div class="cell"><button type="button" class="pn-btn pn-btn--primary" data-icon="plus">メモ</button><span class="cap">--primary</span></div>
+      <div class="cell"><button type="button" class="pn-btn is-on" data-icon="arrow-left">戻る</button><span class="cap">.is-on</span></div>
+      <div class="cell"><button type="button" class="pn-btn pn-btn--danger pn-btn--icon" aria-label="削除" data-icon="trash-2"></button><span class="cap">--danger --icon</span></div>
+      <div class="cell"><button type="button" class="pn-btn pn-btn--danger pn-btn--icon" data-icon="trash-2">本当に削除？</button><span class="cap">削除の確認</span></div>
+      <div class="cell"><button type="button" class="pn-btn pn-btn--primary" disabled>保存</button><span class="cap">disabled</span></div>
+      <div class="cell"><button type="button" class="pn-close" aria-label="閉じる" data-icon="x"></button><span class="cap">.pn-close</span></div>
+      <div class="cell"><span style="position:relative;display:inline-block;width:48px;height:48px"><button type="button" class="pn-x" aria-label="閉じる" data-icon="x"></button></span><span class="cap">.pn-x</span></div>
+      <div class="cell"><button type="button" class="pn-btn pn-launch" data-icon="logo">メモ</button><span class="cap">.pn-launch</span></div>
+    </div>
+  </div>
+</section>
+
+<section id="controls">
+  <h2>選択の部品</h2>
+  <div class="stage" data-asternote>
+    <h3>種類</h3>
+    <div class="pn-seg" role="group" aria-label="種類" id="kind-seg"></div>
+    <h3>重要度</h3>
+    <div class="pn-seg" role="group" aria-label="重要度">
+      <button type="button" aria-pressed="false">なし</button>
+      <button type="button" aria-pressed="true"><span class="pn-stars">★</span></button>
+      <button type="button" aria-pressed="false"><span class="pn-stars">★★</span></button>
+      <button type="button" aria-pressed="false"><span class="pn-stars">★★★</span></button>
+    </div>
+    <h3>置き方</h3>
+    <div class="pn-seg pn-mode" role="group" aria-label="置き方">
+      <button type="button" aria-pressed="true">点</button><button type="button" aria-pressed="false">範囲</button>
+    </div>
+    <h3>チェック</h3>
+    <div class="row">
+      <label class="pn-check"><input type="checkbox">完了も表示</label>
+      <label class="pn-check"><input type="checkbox" checked>完了も表示</label>
+    </div>
+    <h3>入力欄</h3>
+    <div class="pn-pop" style="width:300px;padding:0;border:0;box-shadow:none">
+      <textarea placeholder="決まったこと、直したいこと" aria-label="本文"></textarea>
+      <input type="text" placeholder="ななしさん" aria-label="名前">
+    </div>
+  </div>
+</section>
+
+<section id="tags">
+  <h2>ラベル</h2>
+  <div class="stage" data-asternote>
+    <div class="row">
+      <span class="pn-tag" data-status="open">1 未完了</span>
+      <span class="pn-tag" data-status="done" data-icon="check">2 完了</span>
+      <span class="pn-kind" data-icon="lightbulb">アイデア</span>
+      <span class="pn-stars" role="img" aria-label="重要度 2">★★</span>
+      <span class="pn-meta">ななしさん｜5分前</span>
+      <span class="pn-notice">保存データが壊れていたため、退避しました</span>
+      <span class="pn-hint">クリックで点、ドラッグで範囲を指定</span>
+    </div>
+  </div>
+</section>
+
+<section id="pins">
+  <h2>ピンと範囲</h2>
+  <div class="stage stage--gray" data-asternote>
+    <div class="row" style="align-items:center;gap:24px">
+      <div class="cell"><button type="button" class="pn-pin" data-status="open">1</button><span class="cap">未完了</span></div>
+      <div class="cell"><button type="button" class="pn-pin" data-status="open" data-icon-pin="lightbulb">2</button><span class="cap">種類あり</span></div>
+      <div class="cell"><button type="button" class="pn-pin" data-status="done" data-icon-pin-after="check">3</button><span class="cap">完了</span></div>
+      <div class="cell"><button type="button" class="pn-pin is-lost" data-status="open">4</button><span class="cap">見失った</span></div>
+      <div class="cell"><div class="areabox"><div class="pn-area" data-status="open"></div><button type="button" class="pn-pin" data-status="open">5</button></div><span class="cap">範囲</span></div>
+      <div class="cell"><div class="areabox"><div class="pn-area is-lost" data-status="done"></div><button type="button" class="pn-pin is-lost" data-status="done" data-icon-pin-after="check">6</button></div><span class="cap">範囲・完了・見失った</span></div>
+      <div class="cell"><div style="width:48px;height:48px;display:grid;place-items:center"><div class="pn-cursor"></div></div><span class="cap">キーボードのカーソル</span></div>
+    </div>
+  </div>
+</section>
+
+<section id="bar">
+  <h2>バー</h2>
+  <div class="stage stage--gray" data-asternote>
+    <h3>通常</h3>
+    <div class="pn-bar" role="region" aria-label="メモ">
+      <div class="pn-island">
+        <button type="button" class="pn-btn pn-btn--primary" data-icon="plus">メモ</button>
+        <button type="button" class="pn-btn" data-icon="list">一覧</button>
+        <label class="pn-check"><input type="checkbox">完了も表示</label>
+      </div>
+      <button type="button" class="pn-close" aria-label="メモを閉じる" data-icon="x"></button>
+    </div>
+    <h3>置くモード</h3>
+    <div class="pn-bar placing-hint" role="region" aria-label="メモ">
+      <div class="pn-island">
+        <button type="button" class="pn-btn pn-btn--primary is-on" data-icon="arrow-left">戻る</button>
+        <div class="pn-seg pn-mode" role="group" aria-label="置き方"><button type="button" aria-pressed="true">点</button><button type="button" aria-pressed="false">範囲</button></div>
+        <span class="pn-hint">クリックで点、ドラッグで範囲を指定</span>
+      </div>
+      <button type="button" class="pn-close" aria-label="メモを閉じる" data-icon="x"></button>
+    </div>
+    <h3>通知あり</h3>
+    <div class="pn-bar" role="region" aria-label="メモ">
+      <div class="pn-island">
+        <button type="button" class="pn-btn pn-btn--primary" data-icon="plus">メモ</button>
+        <button type="button" class="pn-btn" data-icon="list">一覧</button>
+        <label class="pn-check"><input type="checkbox">完了も表示</label>
+        <span class="pn-notice">ブラウザに保存しています（手元での確認用）</span>
+      </div>
+      <button type="button" class="pn-close" aria-label="メモを閉じる" data-icon="x"></button>
+    </div>
+  </div>
+</section>
+
+<section id="popover">
+  <h2>吹き出し</h2>
+  <div class="stage stage--gray" data-asternote>
+    <div class="row">
+      <div class="cell">
+        <div class="pn-pop" role="dialog" aria-label="メモ 2">
+          <h2 class="pn-title">メモ 2</h2>
+          <button type="button" class="pn-x" aria-label="閉じる" data-icon="x"></button>
+          <div class="pn-head"><span class="pn-kind" data-icon="lightbulb">アイデア</span><span class="pn-tag" data-status="open">未完了</span><span class="pn-stars" role="img" aria-label="重要度 2">★★</span></div>
+          <p class="pn-body">見出しの余白をもう少し広げたい。スマホでは詰まって見える。</p>
+          <div class="pn-meta">ななしさん｜5分前</div>
+          <div class="pn-row">
+            <button type="button" class="pn-btn pn-btn--primary" data-icon="check">完了</button>
+            <button type="button" class="pn-btn" data-icon="pencil">編集</button>
+            <button type="button" class="pn-btn" data-icon="move">移動</button>
+          </div>
+        </div>
+        <span class="cap">見る</span>
+      </div>
+      <div class="cell">
+        <div class="pn-pop" role="dialog" aria-label="新しいメモ">
+          <h2 class="pn-title">新しいメモ</h2>
+          <button type="button" class="pn-x" aria-label="閉じる" data-icon="x"></button>
+          <div class="pn-label">種類</div>
+          <div class="pn-seg" role="group" aria-label="種類" data-kinds></div>
+          <div class="pn-label">本文</div>
+          <textarea placeholder="決まったこと、直したいこと" aria-label="本文"></textarea>
+          <div class="pn-label">重要度</div>
+          <div class="pn-seg" role="group" aria-label="重要度">
+            <button type="button" aria-pressed="true">なし</button><button type="button" aria-pressed="false"><span class="pn-stars">★</span></button><button type="button" aria-pressed="false"><span class="pn-stars">★★</span></button><button type="button" aria-pressed="false"><span class="pn-stars">★★★</span></button>
+          </div>
+          <div class="pn-sep"></div>
+          <div class="pn-label">名前</div>
+          <input type="text" placeholder="ななしさん" aria-label="名前">
+          <p class="pn-error" role="alert">本文を書いてください</p>
+          <div class="pn-row">
+            <button type="button" class="pn-btn pn-btn--primary">保存</button>
+            <button type="button" class="pn-btn">キャンセル</button>
+            <button type="button" class="pn-btn pn-btn--danger pn-btn--icon" aria-label="削除" data-icon="trash-2"></button>
+          </div>
+        </div>
+        <span class="cap">書く・エラー</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="list">
+  <h2>一覧</h2>
+  <div class="stage stage--gray" data-asternote>
+    <div class="row">
+      <div class="pn-list" role="region" aria-label="メモの一覧">
+        <ol>
+          <li><button type="button" class="pn-item"><span class="pn-head"><span class="pn-tag" data-status="open">1 未完了</span><span class="pn-kind" data-icon="wrench">修正</span><span class="pn-stars">★★★</span></span><span class="pn-line">ロゴの位置が 2px ずれている</span><span class="pn-meta pn-line">ななしさん｜たった今</span></button></li>
+          <li><button type="button" class="pn-item"><span class="pn-head"><span class="pn-tag" data-status="done" data-icon="check">2 完了</span></span><span class="pn-line">見出しの文言を確定した</span><span class="pn-meta pn-line">ななしさん｜2026-11-01</span></button></li>
+        </ol>
+      </div>
+      <div class="pn-list" role="region" aria-label="メモの一覧"><p class="pn-empty">このページのメモはまだありません。</p></div>
+    </div>
+  </div>
+</section>
+
+</main>
+<script src="../asternote.js" data-ui="none" data-project="catalog" defer></script>
+<script>
+// asternote.js の文字列から、トークンの初期値とアイコンを読み取って描く。開発用なので、読み取る形が変わったら直す
+(function () {
+  var SVG_HEAD = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">';
+  var KINDS = [['memo', 'メモ', 'sticky-note'], ['idea', 'アイデア', 'lightbulb'], ['fix', '修正', 'wrench'], ['info', '質問・情報', 'circle-help'], ['like', 'いいね', 'heart']];
+  // 白に対する比で足りるかを見る基準。文字は 4.5、枠とフォーカスリングは 3。飾りは基準なし
+  var NEED = { fg: 4.5, muted: 4.5, input: 3, primary: 3, ring: 3, danger: 4.5, open: 3, done: 3, star: 3, 'primary-fg': 4.5 };
+
+  function lum(hex) {
+    var m = hex.replace('#', '');
+    if (m.length === 3) m = m.split('').map(function (c) { return c + c; }).join('');
+    return [0, 2, 4].map(function (i) {
+      var c = parseInt(m.slice(i, i + 2), 16) / 255;
+      return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+    }).reduce(function (s, c, i) { return s + c * [0.2126, 0.7152, 0.0722][i]; }, 0);
+  }
+  function ratio(a, b) { var x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); }
+
+  var logoSvg = '';
+  function icon(svgs, name) {
+    var s = document.createElement('span');
+    s.className = 'pn-icon';
+    s.innerHTML = name === 'logo' ? logoSvg : SVG_HEAD + (svgs[name] || '') + '</svg>';
+    return s;
+  }
+
+  Promise.all([
+    fetch('../asternote.js').then(function (r) { return r.text(); }),
+    fetch('../package.json').then(function (r) { return r.json(); }).catch(function () { return {}; }),
+  ]).then(function (res) {
+    var src = res[0];
+    document.getElementById('meta').textContent = 'v' + (res[1].version || '?') + '　·　asternote.js から読み取って描いています';
+
+    // トークン
+    var block = src.slice(src.indexOf('var vars = ['), src.indexOf('].map(function (v) { return \'--pn-\''));
+    var tokens = [];
+    block.replace(/\['([a-z-]+)', '([^']+)'\]/g, function (_, k, v) { tokens.push([k, v]); });
+    var map = {}; tokens.forEach(function (t) { map[t[0]] = t[1]; });
+    var rows = document.getElementById('token-rows');
+    tokens.forEach(function (t) {
+      var k = t[0], v = t[1], isColor = /^#/.test(v);
+      var tr = document.createElement('tr');
+      var r = null;
+      if (isColor) r = k === 'primary-fg' ? ratio(v, map.primary) : ratio(v, map.bg);
+      var need = NEED[k];
+      var swatch = isColor ? '<span class="sw" style="background:' + v + '"></span>'
+        : '<span class="sw" style="border-radius:' + v + ';background:#e4e4e7"></span>';
+      tr.innerHTML = '<td><code>--asternote-' + k + '</code></td><td>' + swatch + '</td><td><code>' + v + '</code></td>' +
+        '<td>' + (r ? r.toFixed(2) + ':1' : '—') + '</td>' +
+        '<td>' + (need ? '<span class="' + (r >= need ? 'ok' : 'ng') + '">' + need + ':1 ' + (r >= need ? '満たす' : '不足') + '</span>' : '<span class="cap">基準なし</span>') + '</td>';
+      rows.appendChild(tr);
+    });
+
+    // アイコン
+    var iconBlock = src.slice(src.indexOf('var ICONS = {'), src.indexOf('};', src.indexOf('var ICONS = {')));
+    var svgs = {};
+    iconBlock.replace(/'([a-z0-9-]+)': '(<[^']*)'/g, function (_, k, v) { svgs[k] = v; });
+    var m = src.match(/var LOGO = '(<svg[^']*)'/);
+    logoSvg = m ? m[1] : '';
+    document.getElementById('logo').innerHTML = logoSvg;
+    var grid = document.getElementById('icon-grid');
+    var ld = document.createElement('div');
+    ld.className = 'icon';
+    ld.innerHTML = logoSvg + '<code>logo</code>';
+    grid.appendChild(ld);
+    Object.keys(svgs).forEach(function (name) {
+      var d = document.createElement('div');
+      d.className = 'icon';
+      d.innerHTML = SVG_HEAD + svgs[name] + '</svg><code>' + name + '</code>';
+      grid.appendChild(d);
+    });
+
+    // 種類のボタン
+    document.querySelectorAll('#kind-seg, [data-kinds]').forEach(function (seg) {
+      KINDS.forEach(function (k, i) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.setAttribute('aria-pressed', String(i === 0));
+        b.appendChild(icon(svgs, k[2]));
+        b.appendChild(document.createTextNode(k[1]));
+        seg.appendChild(b);
+      });
+    });
+
+    // data-icon の付いた要素に、アイコンを足す。文字があればアイコンを前に置き、文字は span で包む
+    document.querySelectorAll('[data-icon]').forEach(function (el) {
+      var text = el.textContent;
+      el.textContent = '';
+      el.appendChild(icon(svgs, el.dataset.icon));
+      if (text) { var s = document.createElement('span'); s.textContent = text; el.appendChild(s); }
+    });
+    document.querySelectorAll('[data-icon-pin]').forEach(function (el) { el.insertBefore(icon(svgs, el.dataset.iconPin), el.firstChild); });
+    document.querySelectorAll('[data-icon-pin-after]').forEach(function (el) { el.appendChild(icon(svgs, el.dataset.iconPinAfter)); });
+  });
+})();
+</script>
+</body>
+</html>
