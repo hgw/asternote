@@ -63,7 +63,7 @@
   'use strict';
 
   // 版の番号。package.json と同じ値にする。scripts/build-wordpress.sh が確かめる
-  var VERSION = '0.10.0';
+  var VERSION = '0.11.0';
 
   var script = document.currentScript;
   var config = {
@@ -73,15 +73,130 @@
     defaultOn: !!(script && script.dataset.default === 'on'),
   };
 
+  // ---------- 文言 ----------
+  // 画面の文言はすべてここに置く。言語を足すときは、ja と同じキーをそろえる
+  // {n} などは、t() の2つ目の引数の値で置き換える
+  var MESSAGES = {
+    ja: {
+      'status.open': '未完了', 'status.done': '完了',
+      'anonymous': 'ななしさん',
+      'kind.memo': 'メモ', 'kind.idea': 'アイデア', 'kind.fix': '修正', 'kind.info': '質問・情報', 'kind.like': 'いいね',
+      'importance': '重要度', 'importance.n': '重要度 {n}', 'importance.none': 'なし', 'importance.noneLabel': '重要度の指定なし',
+      'sep': '、',
+      'bar.region': 'メモ', 'bar.add': 'メモを追加', 'bar.list': '一覧', 'bar.close': 'メモを閉じる',
+      'bar.settings': '設定', 'bar.grip': 'ドラッグでバーを動かす', 'bar.back': '戻る', 'bar.backTitle': '戻る（Esc）',
+      'bar.area': '範囲で指定', 'bar.areaTitle': '2つの角のクリックで範囲を指定する',
+      'launcher': 'メモ',
+      'hint.move': '移動先をクリック', 'hint.corner1': '1つ目の角をクリック', 'hint.corner2': '2つ目の角をクリック',
+      'hint.point': 'クリックで点、ドラッグで範囲を指定', 'hint.keys': '。矢印キーで動かし、Enter で決定',
+      'cursor': 'メモを置く位置。矢印キーで動かし、Enter で決定。Shift と矢印キーで大きく動く',
+      'pin.note': 'メモ {n}', 'pin.area': '範囲', 'pin.lost': '（元の要素が見つからない）',
+      'close': '閉じる',
+      'editor.new': '新しいメモ', 'editor.edit': 'メモを編集',
+      'editor.kind': '種類', 'editor.body': '本文', 'editor.bodyPlaceholder': '決まったこと、直したいこと', 'editor.name': '名前',
+      'editor.save': '保存', 'editor.saveTitle': '⌘ / Ctrl + Enter でも保存できる', 'editor.cancel': 'キャンセル',
+      'editor.empty': '本文を入力してください', 'editor.saving': '保存しています', 'editor.deleting': '削除しています',
+      'editor.delete': '削除', 'editor.confirmDelete': '本当に削除？',
+      'editor.dirty': '書きかけの内容があります。保存するか、キャンセルしてください',
+      'viewer.note': 'メモ {n}', 'viewer.noteNoNum': 'メモ', 'viewer.done': '完了', 'viewer.reopen': '未完了に戻す',
+      'viewer.edit': '編集', 'viewer.move': '移動',
+      'list.region': 'メモの一覧', 'list.empty': 'このページのメモはまだありません。',
+      'list.doneHidden': '完了したメモが {n} 件あります。設定の「完了したメモも表示」で見られます。',
+      'settings.title': '設定', 'settings.close': '設定を閉じる', 'settings.showDone': '完了したメモも表示',
+      'settings.keyboard': 'キーボード操作', 'settings.key': 'メモを追加するキー',
+      'settings.keyInvalid': '英字か数字の1文字にしてください', 'settings.keyEmpty': 'キーを1文字入れてください',
+      'settings.hideBar': 'バーを非表示', 'settings.hideBarNote': 'キーを押すと、バーが出ます',
+      'settings.pos': 'バーの位置', 'settings.reset': '最初の位置に戻す', 'newTab': '（新しいタブで開く）',
+      'pos.tl': '左上', 'pos.t': '上', 'pos.tr': '右上', 'pos.l': '左', 'pos.r': '右', 'pos.bl': '左下', 'pos.b': '下', 'pos.br': '右下',
+      'time.now': 'たった今', 'time.min': '{n}分前', 'time.hour': '{n}時間前', 'time.day': '{n}日前', 'time.day1': '{n}日前',
+      'notice.corrupt': '保存データが壊れているため、空として表示しています。管理者に連絡してください',
+      'notice.recovered': '壊れた保存データを退避して、新しく保存しました。管理者に連絡してください',
+      'error.saveFailed': '保存できませんでした', 'error.deleteFailed': '削除できませんでした', 'error.loadFailed': '読み込めませんでした',
+      'error.colon': ': ',
+      'error.response': 'サーバーの応答が不正です（{n}）', 'error.localSave': 'ブラウザに保存できませんでした',
+      // api.php の code に対応する文言。知らない code は、api.php の error の文をそのまま出す
+      'api.not_found': 'メモが見つかりません', 'api.too_many_notes': 'メモの数が上限の {limit} 件に達しています',
+      'api.empty_body': '本文が空です', 'api.too_large': 'リクエストが大きすぎます', 'api.bad_json': 'JSON が不正です',
+      'api.bad_action': 'action が不正です', 'api.bad_project': 'project が不正です', 'api.unknown_project': 'project が見つかりません',
+      'api.missing_header': 'ヘッダーがありません', 'api.method_not_allowed': 'GET か POST だけを受け付けます',
+      'api.auth_required': 'Basic 認証の情報が届いていません。サイトに Basic 認証をかけてください',
+      'api.corrupt_data': '保存データが壊れています。管理者に連絡してください',
+      'api.save_failed': '保存できませんでした', 'api.read_failed': '保存データを読み込めませんでした',
+      'api.backup_failed': '保存データを退避できませんでした', 'api.lock_failed': 'ロックを取れません',
+      'api.config': 'サーバーの設定に問題があります。管理者に連絡してください',
+    },
+    en: {
+      'status.open': 'Open', 'status.done': 'Done',
+      'anonymous': 'Anonymous',
+      'kind.memo': 'Note', 'kind.idea': 'Idea', 'kind.fix': 'Fix', 'kind.info': 'Question', 'kind.like': 'Like',
+      'importance': 'Importance', 'importance.n': 'Importance {n}', 'importance.none': 'None', 'importance.noneLabel': 'No importance',
+      'sep': ', ',
+      'bar.region': 'Notes', 'bar.add': 'Add note', 'bar.list': 'List', 'bar.close': 'Close notes',
+      'bar.settings': 'Settings', 'bar.grip': 'Drag to move the bar', 'bar.back': 'Back', 'bar.backTitle': 'Back (Esc)',
+      'bar.area': 'Select area', 'bar.areaTitle': 'Click two corners to select an area',
+      'launcher': 'Notes',
+      'hint.move': 'Click where to move', 'hint.corner1': 'Click the first corner', 'hint.corner2': 'Click the second corner',
+      'hint.point': 'Click for a point, drag for an area', 'hint.keys': '. Move with the arrow keys and press Enter',
+      'cursor': 'Where to place the note. Move with the arrow keys and press Enter. Hold Shift to move faster',
+      'pin.note': 'Note {n}', 'pin.area': 'area', 'pin.lost': '(original element not found) ',
+      'close': 'Close',
+      'editor.new': 'New note', 'editor.edit': 'Edit note',
+      'editor.kind': 'Type', 'editor.body': 'Text', 'editor.bodyPlaceholder': 'Decisions, things to fix', 'editor.name': 'Name',
+      'editor.save': 'Save', 'editor.saveTitle': 'You can also save with ⌘ / Ctrl + Enter', 'editor.cancel': 'Cancel',
+      'editor.empty': 'Enter some text', 'editor.saving': 'Saving', 'editor.deleting': 'Deleting',
+      'editor.delete': 'Delete', 'editor.confirmDelete': 'Really delete?',
+      'editor.dirty': 'You have unsaved text. Save or cancel it',
+      'viewer.note': 'Note {n}', 'viewer.noteNoNum': 'Note', 'viewer.done': 'Done', 'viewer.reopen': 'Mark as open',
+      'viewer.edit': 'Edit', 'viewer.move': 'Move',
+      'list.region': 'Note list', 'list.empty': 'No notes on this page yet.',
+      'list.doneHidden': '{n} done notes are hidden. Turn on "Show done notes" in Settings to see them.',
+      'settings.title': 'Settings', 'settings.close': 'Close settings', 'settings.showDone': 'Show done notes',
+      'settings.keyboard': 'Keyboard shortcut', 'settings.key': 'Key to add a note',
+      'settings.keyInvalid': 'Use one letter or digit', 'settings.keyEmpty': 'Enter one key',
+      'settings.hideBar': 'Hide the bar', 'settings.hideBarNote': 'Press the key to show the bar',
+      'settings.pos': 'Bar position', 'settings.reset': 'Reset position', 'newTab': '(opens in a new tab)',
+      'pos.tl': 'Top left', 'pos.t': 'Top', 'pos.tr': 'Top right', 'pos.l': 'Left', 'pos.r': 'Right', 'pos.bl': 'Bottom left', 'pos.b': 'Bottom', 'pos.br': 'Bottom right',
+      'time.now': 'just now', 'time.min': '{n} min ago', 'time.hour': '{n} hr ago', 'time.day': '{n} days ago', 'time.day1': '1 day ago',
+      'notice.corrupt': 'The saved data is corrupted, so nothing is shown. Contact the administrator',
+      'notice.recovered': 'The corrupted data was backed up and saved again. Contact the administrator',
+      'error.saveFailed': 'Could not save', 'error.deleteFailed': 'Could not delete', 'error.loadFailed': 'Could not load',
+      'error.colon': ': ',
+      'error.response': 'Unexpected server response ({n})', 'error.localSave': 'Could not save in the browser',
+      'api.not_found': 'Note not found', 'api.too_many_notes': 'The number of notes has reached the limit of {limit}',
+      'api.empty_body': 'The text is empty', 'api.too_large': 'The request is too large', 'api.bad_json': 'Invalid JSON',
+      'api.bad_action': 'Invalid action', 'api.bad_project': 'Invalid project', 'api.unknown_project': 'Project not found',
+      'api.missing_header': 'A required header is missing', 'api.method_not_allowed': 'Only GET and POST are allowed',
+      'api.auth_required': 'Basic authentication is not configured. Protect the site with Basic authentication',
+      'api.corrupt_data': 'The saved data is corrupted. Contact the administrator',
+      'api.save_failed': 'Could not save', 'api.read_failed': 'Could not read the saved data',
+      'api.backup_failed': 'Could not back up the saved data', 'api.lock_failed': 'Could not lock the saved data',
+      'api.config': 'The server is misconfigured. Contact the administrator',
+    },
+  };
+  // 言語は data-lang を優先し、なければブラウザの言語で決める。日本語でなければ英語にする
+  var LANG = (function () {
+    var fixed = ((script && script.dataset.lang) || '').toLowerCase();
+    if (MESSAGES[fixed]) return fixed;
+    var nav = (navigator.languages && navigator.languages[0]) || navigator.language || '';
+    return /^ja\b/i.test(nav) ? 'ja' : 'en';
+  })();
+  config.lang = LANG;
+  function t(key, vars) {
+    var text = MESSAGES[LANG][key];
+    if (text == null) text = MESSAGES.ja[key];
+    if (text == null) return key;
+    return vars ? text.replace(/\{(\w+)\}/g, function (m, k) { return vars[k] != null ? String(vars[k]) : m; }) : text;
+  }
+
   // メモは未完了か完了のどちらか。保存データの status が done なら完了、それ以外は未完了として扱う
   // v0.3.0 までの decided（確認待ち）も、ここで未完了になる
   // 色は CSS の [data-status] で付ける。色だけに頼らないよう、完了のピンにはアイコンも出す
   var STATUS = [
-    { key: 'open', label: '未完了', icon: null },
-    { key: 'done', label: '完了', icon: 'check' },
+    { key: 'open', label: t('status.open'), icon: null },
+    { key: 'done', label: t('status.done'), icon: 'check' },
   ];
   // 名前を書かなかったメモの表示名。保存データには空のまま残す
-  var ANONYMOUS = 'ななしさん';
+  var ANONYMOUS = t('anonymous');
   // key で探し、見つからなければ最初の要素を返す。状態と種類で共通に使う
   var byKey = function (list, key) {
     return list.filter(function (x) { return x.key === key; })[0] || list[0];
@@ -115,11 +230,11 @@
   // 元の図は 43×43。上下の余白を詰め、ほかのアイコンと見た目の大きさをそろえる
   var LOGO = '<svg viewBox="3 2 39 39" fill="currentColor" aria-hidden="true" focusable="false"><path d="M16.2138 13.0366C16.4242 13.0661 16.6267 13.1396 16.8085 13.2524C16.9904 13.3653 17.1459 13.5144 17.2656 13.6899L17.373 13.8735V13.8745L19.6835 18.5532C19.764 18.7159 19.8825 18.8566 20.0292 18.9634C20.1762 19.0703 20.3475 19.1401 20.5273 19.1665H20.5263L25.6923 19.9224H25.6914C25.9032 19.9531 26.1051 20.0281 26.2851 20.1411L26.458 20.2661L26.6103 20.4146C26.7051 20.5202 26.7844 20.6386 26.8466 20.7661L26.9267 20.9634L26.9785 21.1704C27.0154 21.3796 27.0082 21.5955 26.957 21.8032C26.8886 22.0802 26.7442 22.3326 26.54 22.5317L26.539 22.5327L22.8037 26.1704C22.6735 26.2973 22.5758 26.4536 22.5195 26.6265C22.4633 26.7992 22.45 26.9835 22.4804 27.1626L23.3613 32.2983L23.3837 32.5112C23.3911 32.7245 23.3539 32.9379 23.2734 33.1372C23.166 33.4031 22.9859 33.6337 22.7539 33.8022C22.5218 33.9707 22.2469 34.0704 21.9609 34.0903C21.6748 34.1102 21.3888 34.0493 21.1357 33.9146V33.9136L16.5224 31.4888C16.3617 31.4045 16.1824 31.3608 16.0009 31.3608C15.8196 31.3609 15.641 31.4046 15.4804 31.4888L10.8642 33.9146L10.8652 33.9155C10.6122 34.0494 10.3265 34.1096 10.041 34.0894C9.75556 34.069 9.48138 33.9695 9.24995 33.8013C9.01846 33.6329 8.83873 33.4026 8.73139 33.1372C8.65085 32.938 8.61376 32.7244 8.62104 32.5112L8.64253 32.2993L9.52339 27.1636C9.55408 26.9844 9.5405 26.8004 9.48432 26.6274C9.44214 26.4977 9.37693 26.3767 9.29194 26.271L9.20014 26.1704L5.46382 22.5337L5.46479 22.5327C5.26023 22.3341 5.11492 22.0828 5.04585 21.8062C4.97649 21.5281 4.98575 21.2359 5.07417 20.9634L5.15425 20.7651C5.24777 20.5733 5.38121 20.4025 5.54585 20.2642C5.76518 20.0799 6.03176 19.9606 6.31538 19.9204L11.4765 19.1665L11.6093 19.1382C11.7403 19.1026 11.8641 19.0436 11.9746 18.9634C12.1215 18.8566 12.2407 18.7161 12.3212 18.5532L14.6298 13.8745L14.6308 13.8735C14.7572 13.6181 14.9522 13.4028 15.1943 13.2524C15.4366 13.102 15.7167 13.022 16.0019 13.022L16.2138 13.0366ZM21.3916 32.646V32.6411L21.3896 32.6333L21.3916 32.646ZM22.0712 32.147L22.0761 32.1489C22.0739 32.1477 22.0715 32.1462 22.0693 32.145L22.0712 32.147ZM9.92964 32.1479L9.93257 32.147L9.9355 32.145C9.9336 32.146 9.93152 32.147 9.92964 32.1479ZM14.1142 19.438V19.439C13.8902 19.8923 13.5594 20.2843 13.1503 20.5815C12.7413 20.8787 12.2658 21.0721 11.7656 21.145L7.53901 21.7622L10.5957 24.7378C10.9583 25.091 11.2301 25.5269 11.3867 26.0083C11.5432 26.4898 11.5796 27.0024 11.4941 27.5015L10.7734 31.7046L14.5498 29.7192V29.7183C14.9973 29.4832 15.4954 29.3609 16.0009 29.3608C16.5066 29.3608 17.0054 29.4832 17.4531 29.7183L21.2304 31.7046L20.5087 27.5015V27.5005C20.4235 27.0017 20.4616 26.4895 20.6181 26.0083C20.7747 25.5271 21.0457 25.091 21.4082 24.7378L24.4619 21.7632L20.2373 21.145H20.2363C19.7366 21.0716 19.262 20.8785 18.8535 20.5815C18.4449 20.2844 18.1144 19.8919 17.8906 19.439H17.8896L16.0009 15.6138L14.1142 19.438Z"/><path d="M28.1668 8.00214L28.6355 8.01289L28.6775 8.01582C29.4307 8.07255 30.3452 8.19925 31.2605 8.32636C31.8073 8.40254 32.189 8.9074 32.113 9.45429C32.0371 10.0013 31.5321 10.3827 30.9851 10.3068C30.0567 10.1779 29.2167 10.0625 28.5418 10.0109C27.3979 9.97524 26.6282 10.0295 26.0857 10.1203C24.9659 10.4895 24.4021 10.8 24.0828 11.4016C23.3043 12.8687 23.2498 13.3565 23.2488 13.3654C23.1835 13.9138 22.6858 14.3057 22.1375 14.2404C21.5891 14.1751 21.1972 13.6774 21.2625 13.1291C21.3041 12.7799 21.4771 12.0464 22.3162 10.465C23.0488 9.08434 24.3606 8.57807 25.533 8.19648L25.6668 8.16328C26.3078 8.04846 27.1101 7.98751 28.1668 8.00214Z"/><path d="M35.4967 16.187C35.8074 16.2086 36.03 16.2603 36.3277 16.3853C36.5681 16.4861 36.8736 16.6409 37.1715 16.8003C37.6582 17.0609 37.8412 17.6669 37.5807 18.1538C37.3201 18.6407 36.7141 18.8245 36.2271 18.564C35.9374 18.4089 35.7026 18.2913 35.5543 18.229C35.4874 18.2009 35.4651 18.1954 35.4586 18.1938C35.4527 18.1925 35.4352 18.1894 35.3814 18.1851C34.3935 18.1898 32.8455 18.2356 31.8502 19.1997C30.0866 20.9081 30.0035 21.3267 29.9889 21.3872C29.8587 21.9237 29.3184 22.2534 28.7818 22.1235C28.2451 21.9933 27.9153 21.4522 28.0455 20.9155C28.2113 20.2325 28.7105 19.4565 30.4586 17.7632C32.1336 16.1406 34.5698 16.1882 35.4234 16.1851L35.4967 16.187Z"/><path d="M34.6858 25.1829C36.64 25.0937 37.7079 25.2142 38.3567 25.4387L38.6106 25.5413L38.6556 25.5637C38.9126 25.7004 39.1608 25.8701 39.4124 26.138C39.7904 26.5404 39.7707 27.1729 39.3685 27.551C38.9659 27.9292 38.3326 27.9096 37.9544 27.5071C37.8854 27.4337 37.8273 27.3914 37.7396 27.343C37.5627 27.2704 36.89 27.0876 34.8216 27.179C34.0381 27.2977 33.5386 27.3764 33.0628 27.6555C32.4043 28.0419 31.8534 28.4472 31.4573 28.7717C31.2594 28.9339 31.1038 29.0726 30.9964 29.1751C30.8613 29.3039 30.8552 29.3239 30.8948 29.2659C30.5832 29.7219 29.9612 29.8392 29.5052 29.5276C29.0494 29.216 28.9329 28.5939 29.2444 28.138C29.3403 27.9978 29.4956 27.8422 29.6155 27.7278C29.7631 27.5871 29.9566 27.4151 30.1888 27.2249C30.6531 26.8443 31.2893 26.3763 32.0501 25.9299C32.9324 25.4123 33.8585 25.3032 34.5813 25.1936C34.6159 25.1884 34.6509 25.1845 34.6858 25.1829Z"/></svg>';
   var KINDS = [
-    { key: 'memo', label: 'メモ', icon: 'sticky-note' },
-    { key: 'idea', label: 'アイデア', icon: 'lightbulb' },
-    { key: 'fix', label: '修正', icon: 'wrench' },
-    { key: 'info', label: '質問・情報', icon: 'circle-help' },
-    { key: 'like', label: 'いいね', icon: 'heart' },
+    { key: 'memo', label: t('kind.memo'), icon: 'sticky-note' },
+    { key: 'idea', label: t('kind.idea'), icon: 'lightbulb' },
+    { key: 'fix', label: t('kind.fix'), icon: 'wrench' },
+    { key: 'info', label: t('kind.info'), icon: 'circle-help' },
+    { key: 'like', label: t('kind.like'), icon: 'heart' },
   ];
   var kindOf = function (key) { return byKey(KINDS, key); };
   var isMemo = function (kind) { return kind.key === 'memo'; };
@@ -136,7 +251,7 @@
   var stars = function (n) { return n > 0 ? '★'.repeat(n) : ''; };
   // 星は記号なので、読み上げでは「重要度 2」のように読ませる
   var starsEl = function (n) {
-    return h('span', { class: 'pn-stars', role: 'img', 'aria-label': '重要度 ' + n, text: stars(n) });
+    return h('span', { class: 'pn-stars', role: 'img', 'aria-label': t('importance.n', { n: n }), text: stars(n) });
   };
   // 固定の SVG 文字列からアイコン要素を作る。利用者の入力は入らない
   // 解釈はアイコンごとに1回だけにし、あとは複製して使う。読み上げでは無視させる
@@ -203,8 +318,10 @@
         body: JSON.stringify(Object.assign({ project: config.project }, payload)),
       }).then(parse);
     };
-    var fail = function (res, message) {
-      var err = new Error(message || 'サーバーの応答が不正です（' + res.status + '）');
+    // api.php の code があれば、画面の言語の文言にする。知らない code なら、api.php の文をそのまま出す
+    var fail = function (res, data) {
+      var known = data && data.code && MESSAGES.ja['api.' + data.code] != null ? t('api.' + data.code, data) : null;
+      var err = new Error(known || (data && data.error) || t('error.response', { n: res.status }));
       err.status = res.status;
       return err;
     };
@@ -212,12 +329,12 @@
     function parse(res) {
       if ((res.headers.get('Content-Type') || '').indexOf('application/json') === -1) return Promise.reject(fail(res));
       return res.json().catch(function () { throw fail(res); }).then(function (data) {
-        if (!res.ok) throw fail(res, data && data.error);
+        if (!res.ok) throw fail(res, data);
         var warning = res.headers.get('X-Asternote-Warning');
         if (warning === 'corrupt-data') {
-          setNotice('保存データが壊れているため、空として表示しています。管理者に連絡してください', 'corrupt');
+          setNotice(t('notice.corrupt'), 'corrupt');
         } else if (warning === 'recovered-from-corrupt-data') {
-          setNotice('壊れた保存データを退避して、新しく保存しました。管理者に連絡してください', 'recovered');
+          setNotice(t('notice.recovered'), 'recovered');
         }
         return { data: data, warning: warning };
       });
@@ -244,7 +361,7 @@
     var read = function () { try { return JSON.parse(ls.get(KEY + 'notes') || '[]'); } catch (e) { return []; } };
     // 書けなかったら例外にする。保存できたように見せて、メモが黙って消えないようにする
     var write = function (notes) {
-      try { localStorage.setItem(KEY + 'notes', JSON.stringify(notes)); } catch (e) { throw new Error('ブラウザに保存できませんでした'); }
+      try { localStorage.setItem(KEY + 'notes', JSON.stringify(notes)); } catch (e) { throw new Error(t('error.localSave')); }
     };
     var now = function () { return new Date().toISOString(); };
     return {
@@ -263,7 +380,7 @@
         return new Promise(function (resolve) {
           var all = read(); var found = null;
           all.forEach(function (n) { if (n.id === id) { Object.assign(n, fields, { updatedAt: now() }); found = n; } });
-          if (!found) throw new Error('メモが見つかりません');
+          if (!found) throw new Error(t('api.not_found'));
           write(all);
           resolve(found);
         });
@@ -272,7 +389,7 @@
         return new Promise(function (resolve) {
           var all = read();
           var rest = all.filter(function (n) { return n.id !== id; });
-          if (rest.length === all.length) throw new Error('メモが見つかりません');
+          if (rest.length === all.length) throw new Error(t('api.not_found'));
           write(rest);
           resolve({ ok: true });
         });
@@ -406,6 +523,8 @@
 
   function h(tag, attrs, children) {
     var el = document.createElement(tag);
+    // ツールの部品には言語を付ける。ページと言語が違っても、読み上げが正しく読めるように
+    if (attrs && 'data-asternote' in attrs) el.setAttribute('lang', LANG);
     Object.keys(attrs || {}).forEach(function (k) {
       if (k === 'text') el.textContent = attrs[k];
       else if (k.indexOf('on') === 0) el.addEventListener(k.slice(2), attrs[k]);
@@ -562,12 +681,12 @@
     document.body.appendChild(layer);
 
     // キーボードで押したとき（click の detail が 0）は、置く位置を十字のカーソルで選べるようにする
-    var addBtn = h('button', { type: 'button', class: 'pn-btn pn-btn--primary', onclick: function (e) { setPlacing(!state.placing, { keyboard: e.detail === 0 }); } }, label('plus', 'メモを追加'));
-    var listBtn = h('button', { type: 'button', class: 'pn-btn pn-btn--collapse', title: '一覧', 'aria-expanded': 'false', onclick: toggleList }, label('list', '一覧'));
+    var addBtn = h('button', { type: 'button', class: 'pn-btn pn-btn--primary', onclick: function (e) { setPlacing(!state.placing, { keyboard: e.detail === 0 }); } }, label('plus', t('bar.add')));
+    var listBtn = h('button', { type: 'button', class: 'pn-btn pn-btn--collapse', title: t('bar.list'), 'aria-expanded': 'false', onclick: toggleList }, label('list', t('bar.list')));
     // 完了したメモは、設定でチェックを入れたときだけ表示する。選んだ状態はブラウザに保存する
     state.showDone = ls.get(KEY + 'showDone') === '1';
     // 閉じるボタンは、操作の並びと分けて島の外に置く。アイコンだけなので、名前は aria-label で付ける
-    var closeBtn = h('button', { type: 'button', class: 'pn-close', 'aria-label': 'メモを閉じる', title: 'メモを閉じる', onclick: function () { api.disable(); } }, [iconEl('x')]);
+    var closeBtn = h('button', { type: 'button', class: 'pn-close', 'aria-label': t('bar.close'), title: t('bar.close'), onclick: function () { api.disable(); } }, [iconEl('x')]);
     // エラーは、変わったときに読み上げられるようにする
     var hint = h('span', { class: 'pn-hint', 'data-pn-hint': '', role: 'status' });
     // 置くモードの案内は、画面には出さず、読み上げだけで伝える
@@ -578,16 +697,16 @@
     // トグルボタンより、入っているかどうかが分かりやすいので、チェックボックスにする
     var modeBox = h('input', { type: 'checkbox' });
     modeBox.addEventListener('change', function () { setPlaceMode(modeBox.checked ? 'area' : 'point'); });
-    var modeSeg = h('label', { class: 'pn-check pn-mode', title: '2つの角のクリックで範囲を指定する', hidden: '' }, [modeBox, document.createTextNode('範囲で指定')]);
+    var modeSeg = h('label', { class: 'pn-check pn-mode', title: t('bar.areaTitle'), hidden: '' }, [modeBox, document.createTextNode(t('bar.area'))]);
     // 設定はアイコンだけのボタン。名前は aria-label で付ける
     var settingsBtn = h('button', {
-      type: 'button', class: 'pn-btn pn-btn--icon', 'aria-label': '設定', title: '設定',
+      type: 'button', class: 'pn-btn pn-btn--icon', 'aria-label': t('bar.settings'), title: t('bar.settings'),
       'aria-expanded': 'false', 'aria-controls': 'pn-settings', onclick: function () { toggleSettings(); },
     }, [iconEl('settings')]);
     // つまみはマウスとタッチ用。キーボードと読み上げでは、設定の中の位置の選択を使う
-    var grip = h('span', { class: 'pn-grip', 'aria-hidden': 'true', title: 'ドラッグでバーを動かす', onpointerdown: onGripDown }, [iconEl('grip-vertical')]);
+    var grip = h('span', { class: 'pn-grip', 'aria-hidden': 'true', title: t('bar.grip'), onpointerdown: onGripDown }, [iconEl('grip-vertical')]);
     var island = h('div', { class: 'pn-island' }, [grip, addBtn, modeSeg, listBtn, settingsBtn, hint, notice, srHint]);
-    bar = h('div', { class: 'pn-bar', 'data-asternote': '', role: 'region', 'aria-label': 'メモ', hidden: '' }, [island, closeBtn]);
+    bar = h('div', { class: 'pn-bar', 'data-asternote': '', role: 'region', 'aria-label': t('bar.region'), hidden: '' }, [island, closeBtn]);
     bar.addBtn = addBtn;
     bar.listBtn = listBtn;
     bar.settingsBtn = settingsBtn;
@@ -599,7 +718,7 @@
     document.body.appendChild(bar);
 
     if (config.ui !== 'none') {
-      launcher = h('button', { type: 'button', class: 'pn-btn pn-launch', 'data-asternote': '', onclick: function () { api.toggle(); } }, label('logo', 'メモ'));
+      launcher = h('button', { type: 'button', class: 'pn-btn pn-launch', 'data-asternote': '', onclick: function () { api.toggle(); } }, label('logo', t('launcher')));
       document.body.appendChild(launcher);
     }
 
@@ -678,13 +797,13 @@
     add.classList.toggle('pn-btn--icon', on);
     add.textContent = '';
     if (on) {
-      add.setAttribute('aria-label', '戻る');
-      add.title = '戻る（Esc）';
+      add.setAttribute('aria-label', t('bar.back'));
+      add.title = t('bar.backTitle');
       add.appendChild(iconEl('arrow-left'));
     } else {
       add.removeAttribute('aria-label');
       add.removeAttribute('title');
-      label('plus', 'メモを追加').forEach(function (el) { add.appendChild(el); });
+      label('plus', t('bar.add')).forEach(function (el) { add.appendChild(el); });
     }
     // 置いている間は、置く操作に関係のない部品を隠す。一覧も閉じる
     bar.listBtn.hidden = on;
@@ -716,10 +835,10 @@
     bar.hint.textContent = '';
     bar.hint.title = '';
     if (!state.placing) { bar.srHint.textContent = ''; return; }
-    var text = state.moveTarget ? '移動先をクリック'
-      : state.placeMode === 'area' ? (state.corner ? '2つ目の角をクリック' : '1つ目の角をクリック')
-      : 'クリックで点、ドラッグで範囲を指定';
-    if (cursorEl) text += '。矢印キーで動かし、Enter で決定';
+    var text = state.moveTarget ? t('hint.move')
+      : state.placeMode === 'area' ? (state.corner ? t('hint.corner2') : t('hint.corner1'))
+      : t('hint.point');
+    if (cursorEl) text += t('hint.keys');
     bar.srHint.textContent = text;
   }
 
@@ -807,7 +926,7 @@
     if (!cursorEl) {
       cursorEl = h('div', {
         class: 'pn-cursor', 'data-asternote': '', tabindex: '-1', role: 'application',
-        'aria-label': 'メモを置く位置。矢印キーで動かし、Enter で決定。Shift と矢印キーで大きく動く',
+        'aria-label': t('cursor'),
       });
       cursorEl.addEventListener('keydown', onCursorKey);
       document.body.appendChild(cursorEl);
@@ -975,8 +1094,9 @@
       var pin = h('button', {
         type: 'button',
         class: 'pn-pin' + (pos.lost ? ' is-lost' : ''),
-        title: (pos.lost ? '（元の要素が見つからない）' : '') + note.body,
-        'aria-label': 'メモ ' + num + '、' + st.label + (isMemo(kind) ? '' : '、' + kind.label) + (isArea(note) ? '、範囲' : '') + (imp ? '、重要度 ' + imp : ''),
+        title: (pos.lost ? t('pin.lost') : '') + note.body,
+        'aria-label': [t('pin.note', { n: num }), st.label, isMemo(kind) ? null : kind.label, isArea(note) ? t('pin.area') : null, imp ? t('importance.n', { n: imp }) : null]
+          .filter(Boolean).join(t('sep')),
         'data-status': st.key,
         text: String(num),
         onclick: function (e) {
@@ -1030,7 +1150,7 @@
     pin.style.left = pos.x + 'px';
     pin.style.top = pos.y + 'px';
     pin.classList.toggle('is-lost', pos.lost);
-    pin.title = (pos.lost ? '（元の要素が見つからない）' : '') + pin.note.body;
+    pin.title = (pos.lost ? t('pin.lost') : '') + pin.note.body;
     if (pin.areaEl && pos.x2 != null) {
       pin.areaEl.style.left = pos.x + 'px';
       pin.areaEl.style.top = pos.y + 'px';
@@ -1222,7 +1342,7 @@
   function showPopover(children, title, returnTo) {
     var titleId = 'pn-title-' + (++popoverSeq);
     // 閉じるボタンは、バーと同じく × のアイコンだけにして右上に置く。編集中は「キャンセル」と同じ動きになる
-    var close = h('button', { type: 'button', class: 'pn-x', 'aria-label': '閉じる', title: '閉じる', onclick: closePopover }, [iconEl('x')]);
+    var close = h('button', { type: 'button', class: 'pn-x', 'aria-label': t('close'), title: t('close'), onclick: closePopover }, [iconEl('x')]);
     popover = h('div', { class: 'pn-pop', 'data-asternote': '', role: 'dialog', 'aria-labelledby': titleId, tabindex: '-1' },
       [h('h2', { class: 'pn-title', id: titleId, text: title }), close].concat(children));
     popover.returnTo = returnTo || (document.activeElement !== document.body ? document.activeElement : null);
@@ -1252,9 +1372,9 @@
   function openEditor(note, anchor) {
     if (!requestClosePopover()) return;
     // 上限は api.php と同じ。超えた分が黙って切られないように、入力の時点で止める
-    var body = h('textarea', { placeholder: '決まったこと、直したいこと', 'aria-label': '本文', maxlength: '2000' });
+    var body = h('textarea', { placeholder: t('editor.bodyPlaceholder'), 'aria-label': t('editor.body'), maxlength: '2000' });
     body.value = note ? note.body : '';
-    var author = h('input', { type: 'text', placeholder: ANONYMOUS, 'aria-label': '名前', autocomplete: 'name', maxlength: '40', value: (note && note.author) || ls.get('asternote:author') || '' });
+    var author = h('input', { type: 'text', placeholder: ANONYMOUS, 'aria-label': t('editor.name'), autocomplete: 'name', maxlength: '40', value: (note && note.author) || ls.get('asternote:author') || '' });
     // 種類と重要度は、押して選ぶボタンの並び。選んでいるものは aria-pressed で示す
     var segment = function (label, options, current) {
       var group = h('div', { class: 'pn-seg', role: 'group', 'aria-label': label });
@@ -1272,10 +1392,11 @@
       });
       return group;
     };
-    var kind = segment('種類', KINDS.map(function (k) { return { value: k.key, text: k.label, icon: k.icon }; }), kindOf(note && note.kind).key);
-    var importance = segment('重要度', [0, 1, 2, 3].map(function (n) {
+    var kind = segment(t('editor.kind'), KINDS.map(function (k) { return { value: k.key, text: k.label, icon: k.icon }; }), kindOf(note && note.kind).key);
+    var importance = segment(t('importance'), [0, 1, 2, 3].map(function (n) {
       // 星だけのボタンは、読み上げで「重要度 2」と読ませる
-      return { value: n, text: n ? stars(n) : 'なし', label: n ? '重要度 ' + n : '重要度の指定なし', title: n ? '重要度 ' + n : '重要度の指定なし' };
+      var name = n ? t('importance.n', { n: n }) : t('importance.noneLabel');
+      return { value: n, text: n ? stars(n) : t('importance.none'), label: name, title: name };
     }), importanceOf(note));
     // 保存と削除は同時に走らせない。どちらかの通信中は、もう一方も受け付けない
     // 無効は aria-disabled で示す。disabled にするとフォーカスが body に外れるため
@@ -1294,12 +1415,12 @@
     var self = null;
     var closeSelf = function () { if (popover === self) closePopover(); };
     var save = h('button', {
-      type: 'button', class: 'pn-btn pn-btn--primary', text: '保存', title: '⌘ / Ctrl + Enter でも保存できる',
+      type: 'button', class: 'pn-btn pn-btn--primary', text: t('editor.save'), title: t('editor.saveTitle'),
       onclick: function () {
         if (busy) return;
         var text = body.value.trim();
-        if (!text) { error.textContent = '本文を入力してください'; body.focus(); return; }
-        setBusy(true, '保存しています');
+        if (!text) { error.textContent = t('editor.empty'); body.focus(); return; }
+        setBusy(true, t('editor.saving'));
         error.textContent = '';
         ls.set('asternote:author', author.value.trim());
         // 完了かどうかは閲覧の吹き出しで切り替える。新しいメモは api.php が未完了で作る
@@ -1313,29 +1434,29 @@
         }).then(closeSelf).catch(function (err) {
           // 書いた文章を失わないよう、吹き出しは閉じずに再送できる状態に戻す
           setBusy(false);
-          error.textContent = '保存できませんでした: ' + (err && err.message ? err.message : err);
+          error.textContent = t('error.saveFailed') + t('error.colon') + (err && err.message ? err.message : err);
           refresh();
         });
       },
     });
-    var cancel = h('button', { type: 'button', class: 'pn-btn', text: 'キャンセル', onclick: closePopover });
+    var cancel = h('button', { type: 'button', class: 'pn-btn', text: t('editor.cancel'), onclick: closePopover });
     // 削除は、めったに使わないので編集の吹き出しに置く。ゴミ箱のアイコンだけにし、名前は aria-label で付ける
     // 1回目は「本当に削除？」と出すだけにし、2回目で消す。書きかけの内容があっても削除を優先する
     // 確認の状態は、フォーカスが外れたら解く。あとで誤って押したときに、確認なしで消えないようにする
     var setConfirm = function (on) {
       del.dataset.confirm = on ? '1' : '';
-      var name = on ? '本当に削除？' : '削除';
+      var name = on ? t('editor.confirmDelete') : t('editor.delete');
       del.setAttribute('aria-label', name);
       del.title = name;
       if (on) del.appendChild(h('span', { text: name }));
       else if (del.lastChild.nodeName === 'SPAN' && !del.lastChild.classList.contains('pn-icon')) del.lastChild.remove();
     };
     var del = note ? h('button', {
-      type: 'button', class: 'pn-btn pn-btn--danger pn-btn--icon', 'aria-label': '削除', title: '削除',
+      type: 'button', class: 'pn-btn pn-btn--danger pn-btn--icon', 'aria-label': t('editor.delete'), title: t('editor.delete'),
       onclick: function () {
         if (busy) return;
         if (del.dataset.confirm !== '1') { setConfirm(true); return; }
-        setBusy(true, '削除しています');
+        setBusy(true, t('editor.deleting'));
         error.textContent = '';
         // 消したメモのピンには戻れないので、フォーカスはバーの「メモを追加」に戻す
         self.returnTo = bar.addBtn;
@@ -1344,7 +1465,7 @@
           setBusy(false);
           setConfirm(false);
           self.returnTo = returnTo;
-          error.textContent = '削除できませんでした: ' + (err && err.message ? err.message : err);
+          error.textContent = t('error.deleteFailed') + t('error.colon') + (err && err.message ? err.message : err);
           refresh();
         });
       },
@@ -1366,20 +1487,20 @@
     var initialKind = kind.value;
     var initialImportance = importance.value;
     showPopover([
-      h('div', { class: 'pn-label', text: '種類' }),
+      h('div', { class: 'pn-label', text: t('editor.kind') }),
       kind,
-      h('div', { class: 'pn-label', text: '本文' }),
+      h('div', { class: 'pn-label', text: t('editor.body') }),
       body,
-      h('div', { class: 'pn-label', text: '重要度' }),
+      h('div', { class: 'pn-label', text: t('importance') }),
       importance,
       // 名前はメモの中身ではないので、罫線で分けて保存の直前に置く
-      h('div', { class: 'pn-sep' }, [h('div', { class: 'pn-label', text: '名前' }), author]),
+      h('div', { class: 'pn-sep' }, [h('div', { class: 'pn-label', text: t('editor.name') }), author]),
       error,
       progress,
       h('div', { class: 'pn-row' }, [save, cancel]),
       // 削除は最初から別の行に置く。確認の文字が出ても同じ行の中で伸びるだけで、吹き出しの高さが変わらない
       del ? h('div', { class: 'pn-row' }, [del]) : null,
-    ], note ? 'メモを編集' : '新しいメモ', returnTo);
+    ], note ? t('editor.edit') : t('editor.new'), returnTo);
     self = popover;
     // 書きかけの内容があるかどうか。本文、名前、状態、種類、重要度のどれかが開いたときから変わっていれば書きかけとする
     popover.isDirty = function () {
@@ -1387,7 +1508,7 @@
         kind.value !== initialKind || importance.value !== initialImportance;
     };
     popover.warn = function () {
-      error.textContent = '書きかけの内容があります。保存するか、キャンセルしてください';
+      error.textContent = t('editor.dirty');
       body.focus();
     };
     // 吹き出しのどこにフォーカスがあっても ⌘ / Ctrl + Enter で保存する。種類や重要度のボタンを押したあとでも効くように、
@@ -1419,8 +1540,8 @@
           saveFailed(err);
         });
       },
-    }, done ? [h('span', { text: '未完了に戻す' })] : label('check', '完了'));
-    var edit = h('button', { type: 'button', class: 'pn-btn', onclick: function () { openEditor(note); } }, label('pencil', '編集'));
+    }, done ? [h('span', { text: t('viewer.reopen') })] : label('check', t('viewer.done')));
+    var edit = h('button', { type: 'button', class: 'pn-btn', onclick: function () { openEditor(note); } }, label('pencil', t('viewer.edit')));
     // ドラッグを使わずにピンを動かす。押したあと移動先をクリックする。キーボードでは十字のカーソルで選ぶ
     var move = h('button', {
       type: 'button', class: 'pn-btn',
@@ -1429,7 +1550,7 @@
         closePopover(KEEP_FOCUS);
         setPlacing(true, { move: note.id, keyboard: e.detail === 0 });
       },
-    }, label('move', '移動'));
+    }, label('move', t('viewer.move')));
     var k = kindOf(note.kind);
     var kindLabel = h('span', { class: 'pn-kind' }, [iconEl(k.icon), document.createTextNode(k.label)]);
     var imp = importanceOf(note);
@@ -1443,7 +1564,7 @@
       h('p', { class: 'pn-body', text: note.body }),
       metaEl('div', note),
       h('div', { class: 'pn-row' }, [toggleDone, edit, move]),
-    ], num > 0 ? 'メモ ' + num : 'メモ', returnTo || note.id);
+    ], num > 0 ? t('viewer.note', { n: num }) : t('viewer.noteNoNum'), returnTo || note.id);
     var viewer = popover;
     popover.target = note;
     popover.targetEl = findAnchor(note);
@@ -1462,7 +1583,7 @@
 
   function toggleList() {
     if (!listPanel) {
-      listPanel = h('div', { class: 'pn-list', 'data-asternote': '', role: 'region', 'aria-label': 'メモの一覧', id: 'pn-list', hidden: '' });
+      listPanel = h('div', { class: 'pn-list', 'data-asternote': '', role: 'region', 'aria-label': t('list.region'), id: 'pn-list', hidden: '' });
       bar.listBtn.setAttribute('aria-controls', 'pn-list');
       document.body.appendChild(listPanel);
       if (offsetObserver) offsetObserver.observe(listPanel);
@@ -1672,9 +1793,9 @@
 
   // ---------- 設定のパネル ----------
   var POSITIONS = [
-    ['左上', 'top', 0], ['上', 'top', 0.5], ['右上', 'top', 1],
-    ['左', 'left', 0.5], null, ['右', 'right', 0.5],
-    ['左下', 'bottom', 0], ['下', 'bottom', 0.5], ['右下', 'bottom', 1],
+    [t('pos.tl'), 'top', 0], [t('pos.t'), 'top', 0.5], [t('pos.tr'), 'top', 1],
+    [t('pos.l'), 'left', 0.5], null, [t('pos.r'), 'right', 0.5],
+    [t('pos.bl'), 'bottom', 0], [t('pos.b'), 'bottom', 0.5], [t('pos.br'), 'bottom', 1],
   ];
 
   function toggleSettings() {
@@ -1708,13 +1829,13 @@
   }
 
   function buildSettings() {
-    var close = h('button', { type: 'button', class: 'pn-x', 'aria-label': '設定を閉じる', title: '閉じる', onclick: function () { closeSettings(true); } }, [iconEl('x')]);
+    var close = h('button', { type: 'button', class: 'pn-x', 'aria-label': t('settings.close'), title: t('close'), onclick: function () { closeSettings(true); } }, [iconEl('x')]);
     var keyBox = h('input', { type: 'checkbox' });
     var doneBox = h('input', { type: 'checkbox' });
-    var keyInput = h('input', { type: 'text', class: 'pn-key', maxlength: '1', 'aria-label': 'メモを追加するキー', autocomplete: 'off', spellcheck: 'false' });
+    var keyInput = h('input', { type: 'text', class: 'pn-key', maxlength: '1', 'aria-label': t('settings.key'), autocomplete: 'off', spellcheck: 'false' });
     var keyError = h('p', { class: 'pn-field-error', role: 'alert' });
     var hideBox = h('input', { type: 'checkbox' });
-    var pos = h('div', { class: 'pn-seg pn-pos', role: 'group', 'aria-label': 'バーの位置' });
+    var pos = h('div', { class: 'pn-seg pn-pos', role: 'group', 'aria-label': t('settings.pos') });
     POSITIONS.forEach(function (p) {
       if (!p) { pos.appendChild(h('span', {})); return; }
       pos.appendChild(h('button', {
@@ -1722,7 +1843,7 @@
         onclick: function () { setBarPosition(p[1], p[2]); },
       }, [document.createTextNode(p[0])]));
     });
-    var reset = h('button', { type: 'button', class: 'pn-btn', text: '最初の位置に戻す', onclick: function () { setBarPosition(DEFAULT_PREFS.edge, DEFAULT_PREFS.t); } });
+    var reset = h('button', { type: 'button', class: 'pn-btn', text: t('settings.reset'), onclick: function () { setBarPosition(DEFAULT_PREFS.edge, DEFAULT_PREFS.t); } });
     // バーの位置は、めったに変えないので畳んでおく
     var posBody = h('div', { id: 'pn-settings-pos', hidden: '' }, [pos, h('div', { class: 'pn-row' }, [reset])]);
     var posToggle = h('button', {
@@ -1731,12 +1852,12 @@
         posBody.hidden = !posBody.hidden;
         posToggle.setAttribute('aria-expanded', String(!posBody.hidden));
       },
-    }, [h('span', { text: 'バーの位置' }), iconEl('chevron-down')]);
+    }, [h('span', { text: t('settings.pos') }), iconEl('chevron-down')]);
     // 版の番号は、GitHub のリポジトリへのリンクにする。新しいタブで開くことを、アイコンと読み上げで示す
     var repo = h('a', { href: 'https://github.com/hgw/asternote', target: '_blank', rel: 'noopener noreferrer' }, [
       h('span', { class: 'pn-ver', text: 'Asternote v' + VERSION }),
       iconEl('external-link'),
-      h('span', { class: 'pn-sr', text: '（新しいタブで開く）' }),
+      h('span', { class: 'pn-sr', text: t('newTab') }),
     ]);
 
     keyBox.addEventListener('change', function () {
@@ -1753,7 +1874,7 @@
         savePrefs();
         keyError.textContent = '';
       } else {
-        keyError.textContent = v ? '英字か数字の1文字にしてください' : 'キーを1文字入れてください';
+        keyError.textContent = v ? t('settings.keyInvalid') : t('settings.keyEmpty');
       }
     });
     // 正しくない値のまま離れたら、保存してある値に戻す
@@ -1776,14 +1897,14 @@
     });
 
     settingsPanel = h('div', { class: 'pn-settings', 'data-asternote': '', role: 'region', 'aria-labelledby': 'pn-settings-title', id: 'pn-settings', hidden: '' }, [
-      h('h2', { class: 'pn-title', id: 'pn-settings-title', text: '設定' }),
+      h('h2', { class: 'pn-title', id: 'pn-settings-title', text: t('settings.title') }),
       close,
-      h('label', { class: 'pn-check' }, [doneBox, document.createTextNode('完了したメモも表示')]),
-      h('label', { class: 'pn-check' }, [keyBox, document.createTextNode('キーボード操作')]),
-      h('div', { class: 'pn-field' }, [h('span', { text: 'メモを追加するキー' }), keyInput]),
+      h('label', { class: 'pn-check' }, [doneBox, document.createTextNode(t('settings.showDone'))]),
+      h('label', { class: 'pn-check' }, [keyBox, document.createTextNode(t('settings.keyboard'))]),
+      h('div', { class: 'pn-field' }, [h('span', { text: t('settings.key') }), keyInput]),
       keyError,
-      h('label', { class: 'pn-check' }, [hideBox, document.createTextNode('バーを非表示')]),
-      h('p', { class: 'pn-sub', text: 'キーを押すと、バーが出ます' }),
+      h('label', { class: 'pn-check' }, [hideBox, document.createTextNode(t('settings.hideBar'))]),
+      h('p', { class: 'pn-sub', text: t('settings.hideBarNote') }),
       posToggle,
       posBody,
       h('p', { class: 'pn-foot' }, [repo]),
@@ -1812,7 +1933,7 @@
     var items = visibleNumbered();
     if (!items.length) {
       var hidden = state.notes.length - items.length;
-      var text = hidden ? '完了したメモが ' + hidden + ' 件あります。設定の「完了したメモも表示」で見られます。' : 'このページのメモはまだありません。';
+      var text = hidden ? t('list.doneHidden', { n: hidden }) : t('list.empty');
       listPanel.appendChild(h('p', { class: 'pn-empty', text: text }));
       return;
     }
@@ -1861,13 +1982,14 @@
   function relativeDate(d, now) {
     var diff = now - d;
     // 端末の時計のずれで未来の日時になったときも「たった今」にする
-    if (diff < 60 * 1000) return 'たった今';
+    if (diff < 60 * 1000) return t('time.now');
     if (diff >= WEEK_MS) return formatDate(d, false);
     var min = Math.floor(diff / 60000);
-    if (min < 60) return min + '分前';
+    if (min < 60) return t('time.min', { n: min });
     var hours = Math.floor(min / 60);
-    if (hours < 24) return hours + '時間前';
-    return Math.floor(hours / 24) + '日前';
+    if (hours < 24) return t('time.hour', { n: hours });
+    var days = Math.floor(hours / 24);
+    return t(days === 1 ? 'time.day1' : 'time.day', { n: days });
   }
 
   function formatDate(d, withTime) {
@@ -1879,7 +2001,7 @@
   // 「バーを非表示」がオンでも、エラーは 8 秒バーを出して見せる。札は省略されることがあるので、全文を title にも入れる
   var ERROR_MS = 8000;
   function showError(prefix, err) {
-    var text = prefix + ': ' + (err && err.message ? err.message : err);
+    var text = prefix + t('error.colon') + (err && err.message ? err.message : err);
     bar.hint.textContent = text;
     bar.hint.title = text;
     errorUntil = Date.now() + ERROR_MS;
@@ -1890,7 +2012,7 @@
   // 保存に失敗したら、一覧を読み直す。ほかの人が消したメモのピンが残り続けないようにする
   // 吹き出しは閉じない。失敗したのは前の操作で、今開いている吹き出しとは関係ないことがあるため
   function saveFailed(err) {
-    refresh().then(function () { showError('保存できませんでした', err); });
+    refresh().then(function () { showError(t('error.saveFailed'), err); });
   }
 
   // 消えない通知。hint は操作の案内で上書きされるので、保存先や保存データの状態はこちらに出す
@@ -1914,7 +2036,7 @@
       state.notes = notes || [];
       renderPins();
     }).catch(function (err) {
-      if (seq === refreshSeq) showError('読み込めませんでした', err);
+      if (seq === refreshSeq) showError(t('error.loadFailed'), err);
     });
   }
 

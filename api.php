@@ -7,6 +7,9 @@
  * POST {action:update, id, fields}  メモを更新する。fields に位置の値があれば位置も変える
  * POST {action:delete, id}          メモを削除する
  *
+ * エラーは {error, code} で返す。error は日本語の文、code は種類を表す記号。例 not_found
+ * 画面は code を見て、見る人の言語の文言にする。設定の不備は、どれも code を config にする
+ *
  * 書き込みの制限は、サーバー側の Basic 認証などに任せる。
  * Basic 認証を通っていないリクエストは断る。かけ忘れたまま動き続けないようにするため。
  * 直接開かれたときは、同じディレクトリの asternote.config.php の設定で動く。
@@ -57,22 +60,31 @@ function respond(int $code, array $data): void
     exit;
 }
 
+/**
+ * エラーを返す。$kind は種類を表す記号で、画面はこれを見て、見る人の言語の文言にする
+ * $message は日本語の文。古い版の画面と、ログを読む管理者のために残す
+ */
+function fail(int $status, string $kind, string $message, array $extra = []): void
+{
+    respond($status, ['error' => $message, 'code' => $kind] + $extra);
+}
+
 /** 設定。handle() が最初に渡して検証し、以降はそれを返す */
 function config(?array $set = null): array
 {
     static $config = null;
     if ($set !== null) {
         if (empty($set['data_dir']) || !is_string($set['data_dir'])) {
-            respond(500, ['error' => 'data_dir が設定されていません']);
+            fail(500, 'config', 'data_dir が設定されていません');
         }
         // project 名を限らないと、名前を変えながら保存ファイルを際限なく作れる。設定がない、または形が違えば止める
         $projects = $set['projects'] ?? null;
         if (!is_array($projects) || !$projects || array_filter($projects, 'is_string') !== $projects) {
-            respond(500, ['error' => 'projects を、project 名の配列で設定してください']);
+            fail(500, 'config', 'projects を、project 名の配列で設定してください');
         }
         $config = $set;
     }
-    if ($config === null) respond(500, ['error' => '設定がありません']);
+    if ($config === null) fail(500, 'config', '設定がありません');
     return $config;
 }
 
@@ -91,11 +103,11 @@ function data_dir(): string
 {
     $dir = rtrim(config()['data_dir'], '/');
     if (!is_dir($dir) && !@mkdir($dir, 0700, true)) {
-        respond(500, ['error' => '保存先を作れません']);
+        fail(500, 'config', '保存先を作れません');
     }
     $real = realpath($dir);
     if ($real === false) {
-        respond(500, ['error' => '保存先を確かめられません']);
+        fail(500, 'config', '保存先を確かめられません');
     }
     // api.php の置き場所は公開ディレクトリの中にある。DOCUMENT_ROOT が取れない環境でも、ここで止められる
     $roots = [__DIR__];
@@ -103,7 +115,7 @@ function data_dir(): string
     if ($docroot !== false) $roots[] = $docroot;
     foreach ($roots as $root) {
         if (path_within($real, $root)) {
-            respond(500, ['error' => '保存先がドキュメントルートの中にあります。外に移してください']);
+            fail(500, 'config', '保存先がドキュメントルートの中にあります。外に移してください');
         }
     }
     return $real;
@@ -122,17 +134,17 @@ function require_auth(): void
     foreach (['REMOTE_USER', 'REDIRECT_REMOTE_USER'] as $key) {
         if (!empty($_SERVER[$key])) return;
     }
-    respond(403, ['error' => 'Basic 認証の情報が届いていません。サイトに Basic 認証をかけてください。認証なしで使う場合は、設定に allow_anonymous を書いてください']);
+    fail(403, 'auth_required', 'Basic 認証の情報が届いていません。サイトに Basic 認証をかけてください。認証なしで使う場合は、設定に allow_anonymous を書いてください');
 }
 
 function project_name($value): string
 {
     if (!is_string($value) || !preg_match('/^[a-z0-9_-]{1,40}$/', $value)) {
-        respond(400, ['error' => 'project が不正です']);
+        fail(400, 'bad_project', 'project が不正です');
     }
     // 設定にない名前では、保存ファイルを作らせない
     if (!in_array($value, config()['projects'], true)) {
-        respond(404, ['error' => 'project が見つかりません']);
+        fail(404, 'unknown_project', 'project が見つかりません');
     }
     return $value;
 }
@@ -195,7 +207,7 @@ function with_notes(string $project, callable $fn, bool $write, bool $recover = 
     }
     $lock = @fopen("$path.lock", 'c');
     if (!$lock || !flock($lock, $write ? LOCK_EX : LOCK_SH)) {
-        respond(500, ['error' => 'ロックを取れません']);
+        fail(500, 'lock_failed', 'ロックを取れません');
     }
 
     $notes = [];
@@ -204,7 +216,7 @@ function with_notes(string $project, callable $fn, bool $write, bool $recover = 
         $raw = @file_get_contents($path);
         // 読み取り自体の失敗は一時的な I/O エラーかもしれない。データは壊れていないので触らない
         if ($raw === false) {
-            respond(500, ['error' => '保存データを読み込めませんでした']);
+            fail(500, 'read_failed', '保存データを読み込めませんでした');
         }
         $notes = json_decode($raw, true);
         if (!is_array($notes)) {
@@ -215,11 +227,11 @@ function with_notes(string $project, callable $fn, bool $write, bool $recover = 
             }
             // 更新や削除では、対象のメモが見つからないまま退避すると黙って全件が消える。理由を返して止める
             if (!$recover) {
-                respond(409, ['error' => '保存データが壊れています。管理者に連絡してください']);
+                fail(409, 'corrupt_data', '保存データが壊れています。管理者に連絡してください');
             }
             // 作成のときは、消さずに別名で退避して空から続ける。中身は手で戻せる
             if (!@rename($path, $path . '.corrupt-' . gmdate('YmdHis'))) {
-                respond(500, ['error' => '保存データを退避できませんでした']);
+                fail(500, 'backup_failed', '保存データを退避できませんでした');
             }
             $recovered = true;
             $notes = [];
@@ -232,7 +244,7 @@ function with_notes(string $project, callable $fn, bool $write, bool $recover = 
         $tmp = "$path.tmp";
         if ($json === false || @file_put_contents($tmp, $json) !== strlen($json) || !@rename($tmp, $path)) {
             @unlink($tmp);
-            respond(500, ['error' => '保存できませんでした']);
+            fail(500, 'save_failed', '保存できませんでした');
         }
         // 退避したことは、新しいファイルの保存に成功してから知らせる
         if ($recovered) header('X-Asternote-Warning: recovered-from-corrupt-data');
@@ -274,25 +286,25 @@ function handle($config): void
     }
 
     if ($method !== 'POST') {
-        respond(405, ['error' => 'GET か POST だけを受け付けます']);
+        fail(405, 'method_not_allowed', 'GET か POST だけを受け付けます');
     }
 
     // 別サイトからの書き込みを防ぐ。独自ヘッダーはブラウザが勝手に付けられない
     if (($_SERVER['HTTP_X_ASTERNOTE'] ?? '') !== '1') {
-        respond(403, ['error' => 'ヘッダーがありません']);
+        fail(403, 'missing_header', 'ヘッダーがありません');
     }
 
     // 大きすぎる本文は読み切る前に断る。Content-Length は偽れるので、読んだ長さでも確かめる
     if ((int) ($_SERVER['CONTENT_LENGTH'] ?? 0) > MAX_REQUEST_BYTES) {
-        respond(413, ['error' => 'リクエストが大きすぎます']);
+        fail(413, 'too_large', 'リクエストが大きすぎます');
     }
     $raw = (string) file_get_contents('php://input', false, null, 0, MAX_REQUEST_BYTES + 1);
     if (strlen($raw) > MAX_REQUEST_BYTES) {
-        respond(413, ['error' => 'リクエストが大きすぎます']);
+        fail(413, 'too_large', 'リクエストが大きすぎます');
     }
     $input = json_decode($raw, true);
     if (!is_array($input)) {
-        respond(400, ['error' => 'JSON が不正です']);
+        fail(400, 'bad_json', 'JSON が不正です');
     }
     $project = project_name($input['project'] ?? '');
     $action = $input['action'] ?? '';
@@ -301,7 +313,7 @@ function handle($config): void
     if ($action === 'create') {
         $src = is_array($input['note'] ?? null) ? $input['note'] : [];
         $body = text($src['body'] ?? '', 2000);
-        if ($body === '') respond(400, ['error' => '本文が空です']);
+        if ($body === '') fail(400, 'empty_body', '本文が空です');
         $note = [
             'id' => bin2hex(random_bytes(6)),
             'page' => text($src['page'] ?? '/', 300),
@@ -317,7 +329,7 @@ function handle($config): void
         ];
         with_notes($project, function (array $notes) use ($note) {
             if (count($notes) >= MAX_NOTES) {
-                respond(409, ['error' => 'メモの数が上限の ' . MAX_NOTES . ' 件に達しています']);
+                fail(409, 'too_many_notes', 'メモの数が上限の ' . MAX_NOTES . ' 件に達しています', ['limit' => MAX_NOTES]);
             }
             $notes[] = $note;
             return ['save' => $notes, 'return' => $note];
@@ -359,11 +371,11 @@ function handle($config): void
             // 見つからなければ書き直さない
             return $found === null ? ['return' => null] : ['save' => $notes, 'return' => $found];
         }, true);
-        if ($found === null) respond(404, ['error' => 'メモが見つかりません']);
+        if ($found === null) fail(404, 'not_found', 'メモが見つかりません');
         respond(200, $action === 'delete' ? ['ok' => true] : ['note' => $found]);
     }
 
-    respond(400, ['error' => 'action が不正です']);
+    fail(400, 'bad_action', 'action が不正です');
 }
 
 // 直接開かれたときだけ、隣の設定ファイルで動く。ライブラリとして読み込まれたときは関数の定義だけにする
