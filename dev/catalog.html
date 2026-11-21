@@ -45,7 +45,6 @@
   .static .pn-bar, .static .pn-pop, .static .pn-list, .static .pn-settings, .static .pn-launch, .static .cell > .pn-pin, .static .pn-cursor { position: relative !important; left: auto !important; top: auto !important; bottom: auto !important; }
   .static .cell > .pn-pin, .static .pn-cursor { margin: 0 !important; }
   .static .pn-pop { width: 300px; }
-  .placing-hint .pn-hint { min-width: 17em; }
   .areabox { position: relative; width: 220px; height: 120px; }
   .areabox .pn-area { left: 10px; top: 24px; right: 20px; bottom: 10px; }
   .areabox .pn-pin { left: 10px; top: 24px; }
@@ -91,8 +90,8 @@
   <div class="stage" data-asternote>
     <div class="row">
       <div class="cell"><button type="button" class="pn-btn" data-icon="list">一覧</button><span class="cap">.pn-btn</span></div>
-      <div class="cell"><button type="button" class="pn-btn pn-btn--primary" data-icon="plus">メモ</button><span class="cap">--primary</span></div>
-      <div class="cell"><button type="button" class="pn-btn is-on" data-icon="arrow-left">戻る</button><span class="cap">.is-on</span></div>
+      <div class="cell"><button type="button" class="pn-btn pn-btn--primary" data-icon="plus">メモを追加</button><span class="cap">--primary</span></div>
+      <div class="cell"><button type="button" class="pn-btn pn-btn--icon" aria-label="戻る" data-icon="arrow-left"></button><span class="cap">戻る</span></div>
       <div class="cell"><button type="button" class="pn-btn pn-btn--danger pn-btn--icon" aria-label="削除" data-icon="trash-2"></button><span class="cap">--danger --icon</span></div>
       <div class="cell"><button type="button" class="pn-btn pn-btn--danger pn-btn--icon" data-icon="trash-2">本当に削除？</button><span class="cap">削除の確認</span></div>
       <div class="cell"><button type="button" class="pn-btn pn-btn--primary" disabled>保存</button><span class="cap">disabled</span></div>
@@ -115,14 +114,12 @@
       <button type="button" aria-pressed="false"><span class="pn-stars">★★</span></button>
       <button type="button" aria-pressed="false"><span class="pn-stars">★★★</span></button>
     </div>
-    <h3>置き方</h3>
-    <div class="pn-seg pn-mode" role="group" aria-label="置き方">
-      <button type="button" aria-pressed="true">点</button><button type="button" aria-pressed="false">範囲</button>
-    </div>
+    <h3>範囲で指定</h3>
+    <div class="row"><label class="pn-check pn-mode"><input type="checkbox">範囲で指定</label><label class="pn-check pn-mode"><input type="checkbox" checked>範囲で指定</label></div>
     <h3>チェック</h3>
     <div class="row">
-      <label class="pn-check"><input type="checkbox">完了も表示</label>
-      <label class="pn-check"><input type="checkbox" checked>完了も表示</label>
+      <label class="pn-check"><input type="checkbox">完了したメモも表示</label>
+      <label class="pn-check"><input type="checkbox" checked>完了したメモも表示</label>
     </div>
     <h3>入力欄</h3>
     <div class="pn-pop" style="width:300px;padding:0;border:0;box-shadow:none">
@@ -142,7 +139,7 @@
       <span class="pn-stars" role="img" aria-label="重要度 2">★★</span>
       <span class="pn-meta">ななしさん｜5分前</span>
       <span class="pn-notice">保存データが壊れていたため、退避しました</span>
-      <span class="pn-hint">クリックで点、ドラッグで範囲を指定</span>
+      <span class="pn-hint" style="position:static">保存できませんでした: 通信に失敗しました</span>
     </div>
   </div>
 </section>
@@ -157,6 +154,7 @@
       <div class="cell"><button type="button" class="pn-pin is-lost" data-status="open">4</button><span class="cap">見失った</span></div>
       <div class="cell"><div class="areabox"><div class="pn-area" data-status="open"></div><button type="button" class="pn-pin" data-status="open">5</button></div><span class="cap">範囲</span></div>
       <div class="cell"><div class="areabox"><div class="pn-area is-lost" data-status="done"></div><button type="button" class="pn-pin is-lost" data-status="done" data-icon-pin-after="check">6</button></div><span class="cap">範囲・完了・見失った</span></div>
+      <div class="cell"><div class="areabox"><div class="pn-area is-draft" data-status="open"></div><span class="pn-pin is-draft" data-status="open" aria-hidden="true">7</span></div><span class="cap">書いている間の仮の表示</span></div>
       <div class="cell"><div style="width:48px;height:48px;display:grid;place-items:center"><div class="pn-cursor"></div></div><span class="cap">キーボードのカーソル</span></div>
     </div>
   </div>
@@ -169,20 +167,27 @@
     <div class="pn-bar" role="region" aria-label="メモ">
       <div class="pn-island">
         <span class="pn-grip" aria-hidden="true" data-icon="grip-vertical"></span>
-        <button type="button" class="pn-btn pn-btn--primary" data-icon="plus">メモ</button>
+        <button type="button" class="pn-btn pn-btn--primary" data-icon="plus">メモを追加</button>
         <button type="button" class="pn-btn" data-icon="list">一覧</button>
-        <label class="pn-check"><input type="checkbox">完了も表示</label>
         <button type="button" class="pn-btn pn-btn--icon" aria-label="設定" data-icon="settings"></button>
       </div>
       <button type="button" class="pn-close" aria-label="メモを閉じる" data-icon="x"></button>
     </div>
     <h3>置くモード</h3>
-    <div class="pn-bar placing-hint" role="region" aria-label="メモ">
+    <div class="pn-bar" role="region" aria-label="メモ">
       <div class="pn-island">
         <span class="pn-grip" aria-hidden="true" data-icon="grip-vertical"></span>
-        <button type="button" class="pn-btn pn-btn--primary is-on" data-icon="arrow-left">戻る</button>
-        <div class="pn-seg pn-mode" role="group" aria-label="置き方"><button type="button" aria-pressed="true">点</button><button type="button" aria-pressed="false">範囲</button></div>
-        <span class="pn-hint">クリックで点、ドラッグで範囲を指定</span>
+        <button type="button" class="pn-btn pn-btn--icon" aria-label="戻る" data-icon="arrow-left"></button>
+        <label class="pn-check pn-mode"><input type="checkbox">範囲で指定</label>
+      </div>
+      <button type="button" class="pn-close" aria-label="メモを閉じる" data-icon="x"></button>
+    </div>
+    <h3>置くモード・範囲</h3>
+    <div class="pn-bar" role="region" aria-label="メモ">
+      <div class="pn-island">
+        <span class="pn-grip" aria-hidden="true" data-icon="grip-vertical"></span>
+        <button type="button" class="pn-btn pn-btn--icon" aria-label="戻る" data-icon="arrow-left"></button>
+        <label class="pn-check pn-mode"><input type="checkbox" checked>範囲で指定</label>
       </div>
       <button type="button" class="pn-close" aria-label="メモを閉じる" data-icon="x"></button>
     </div>
@@ -190,9 +195,8 @@
     <div class="pn-bar" role="region" aria-label="メモ">
       <div class="pn-island">
         <span class="pn-grip" aria-hidden="true" data-icon="grip-vertical"></span>
-        <button type="button" class="pn-btn pn-btn--primary" data-icon="plus">メモ</button>
+        <button type="button" class="pn-btn pn-btn--primary" data-icon="plus">メモを追加</button>
         <button type="button" class="pn-btn" data-icon="list">一覧</button>
-        <label class="pn-check"><input type="checkbox">完了も表示</label>
         <button type="button" class="pn-btn pn-btn--icon" aria-label="設定" data-icon="settings" aria-expanded="true"></button>
         <span class="pn-notice">ブラウザに保存しています（手元での確認用）</span>
       </div>
@@ -271,41 +275,33 @@
         <div class="pn-settings" role="region" aria-label="設定">
           <h2 class="pn-title">設定</h2>
           <button type="button" class="pn-x" aria-label="設定を閉じる" data-icon="x"></button>
-          <label class="pn-check"><input type="checkbox" checked>キーでメモを置く</label>
-          <div class="pn-field"><span>キー</span><input type="text" class="pn-key" maxlength="1" value="c" aria-label="メモを置くキー"></div>
+          <label class="pn-check"><input type="checkbox">完了したメモも表示</label>
+          <label class="pn-check"><input type="checkbox" checked>キーボード操作</label>
+          <div class="pn-field"><span>メモを追加するキー</span><input type="text" class="pn-key" maxlength="1" value="c" aria-label="メモを追加するキー"></div>
           <p class="pn-field-error" role="alert"></p>
-          <label class="pn-check"><input type="checkbox">バーを隠す</label>
+          <label class="pn-check"><input type="checkbox">バーを非表示</label>
           <p class="pn-sub">キーを押すと、バーが出ます</p>
-          <div class="pn-label">バーの位置</div>
-          <div class="pn-seg pn-pos" role="group" aria-label="バーの位置">
-            <button type="button" aria-pressed="false">左上</button><button type="button" aria-pressed="false">上</button><button type="button" aria-pressed="false">右上</button>
-            <button type="button" aria-pressed="false">左</button><span></span><button type="button" aria-pressed="false">右</button>
-            <button type="button" aria-pressed="true">左下</button><button type="button" aria-pressed="false">下</button><button type="button" aria-pressed="false">右下</button>
-          </div>
-          <div class="pn-row"><button type="button" class="pn-btn">最初の位置に戻す</button></div>
-          <p class="pn-foot">Asternote v0.0.0</p>
+          <button type="button" class="pn-disclosure" aria-expanded="false"><span>バーの位置</span><span data-icon="chevron-down"></span></button>
+          <div hidden><div class="pn-seg pn-pos" role="group" aria-label="バーの位置"><button type="button" aria-pressed="false">左上</button><button type="button" aria-pressed="false">上</button><button type="button" aria-pressed="false">右上</button><button type="button" aria-pressed="false">左</button><span></span><button type="button" aria-pressed="false">右</button><button type="button" aria-pressed="true">左下</button><button type="button" aria-pressed="false">下</button><button type="button" aria-pressed="false">右下</button></div><div class="pn-row"><button type="button" class="pn-btn">最初の位置に戻す</button></div></div>
+          <p class="pn-foot"><a href="https://github.com/hgw/asternote" target="_blank" rel="noopener noreferrer"><span class="pn-ver">Asternote v0.0.0</span><span data-icon="external-link"></span><span class="pn-sr">（新しいタブで開く）</span></a></p>
         </div>
-        <span class="cap">通常</span>
+        <span class="cap">通常。バーの位置は閉じている</span>
       </div>
       <div class="cell">
         <div class="pn-settings" role="region" aria-label="設定">
           <h2 class="pn-title">設定</h2>
           <button type="button" class="pn-x" aria-label="設定を閉じる" data-icon="x"></button>
-          <label class="pn-check"><input type="checkbox" checked>キーでメモを置く</label>
-          <div class="pn-field"><span>キー</span><input type="text" class="pn-key" maxlength="1" value="!" aria-label="メモを置くキー"></div>
+          <label class="pn-check"><input type="checkbox">完了したメモも表示</label>
+          <label class="pn-check"><input type="checkbox" checked>キーボード操作</label>
+          <div class="pn-field"><span>メモを追加するキー</span><input type="text" class="pn-key" maxlength="1" value="!" aria-label="メモを追加するキー"></div>
           <p class="pn-field-error" role="alert">英字か数字の1文字にしてください</p>
-          <label class="pn-check"><input type="checkbox" checked>バーを隠す</label>
+          <label class="pn-check"><input type="checkbox" checked>バーを非表示</label>
           <p class="pn-sub">キーを押すと、バーが出ます</p>
-          <div class="pn-label">バーの位置</div>
-          <div class="pn-seg pn-pos" role="group" aria-label="バーの位置">
-            <button type="button" aria-pressed="false">左上</button><button type="button" aria-pressed="false">上</button><button type="button" aria-pressed="true">右上</button>
-            <button type="button" aria-pressed="false">左</button><span></span><button type="button" aria-pressed="false">右</button>
-            <button type="button" aria-pressed="false">左下</button><button type="button" aria-pressed="false">下</button><button type="button" aria-pressed="false">右下</button>
-          </div>
-          <div class="pn-row"><button type="button" class="pn-btn">最初の位置に戻す</button></div>
-          <p class="pn-foot">Asternote v0.0.0</p>
+          <button type="button" class="pn-disclosure" aria-expanded="true"><span>バーの位置</span><span data-icon="chevron-down"></span></button>
+          <div><div class="pn-seg pn-pos" role="group" aria-label="バーの位置"><button type="button" aria-pressed="false">左上</button><button type="button" aria-pressed="false">上</button><button type="button" aria-pressed="true">右上</button><button type="button" aria-pressed="false">左</button><span></span><button type="button" aria-pressed="false">右</button><button type="button" aria-pressed="false">左下</button><button type="button" aria-pressed="false">下</button><button type="button" aria-pressed="false">右下</button></div><div class="pn-row"><button type="button" class="pn-btn">最初の位置に戻す</button></div></div>
+          <p class="pn-foot"><a href="https://github.com/hgw/asternote" target="_blank" rel="noopener noreferrer"><span class="pn-ver">Asternote v0.0.0</span><span data-icon="external-link"></span><span class="pn-sr">（新しいタブで開く）</span></a></p>
         </div>
-        <span class="cap">エラー・隠す・右上</span>
+        <span class="cap">エラー・非表示・バーの位置を開いた</span>
       </div>
     </div>
   </div>
@@ -345,7 +341,7 @@
   ]).then(function (res) {
     var src = res[0];
     document.getElementById('meta').textContent = 'v' + (res[1].version || '?') + '　·　asternote.js から読み取って描いています';
-    document.querySelectorAll('.pn-foot').forEach(function (el) { el.textContent = 'Asternote v' + (res[1].version || '?'); });
+    document.querySelectorAll('.pn-foot .pn-ver').forEach(function (el) { el.textContent = 'Asternote v' + (res[1].version || '?'); });
 
     // トークン
     var block = src.slice(src.indexOf('var vars = ['), src.indexOf('].map(function (v) { return \'--pn-\''));
