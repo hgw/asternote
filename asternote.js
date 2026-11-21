@@ -102,6 +102,7 @@
       'viewer.edit': '編集', 'viewer.move': '移動',
       'list.region': 'メモの一覧', 'list.empty': 'このページのメモはまだありません。',
       'list.doneHidden': '完了したメモが {n} 件あります。設定の「完了したメモも表示」で見られます。',
+      'list.doneHidden1': '完了したメモが 1 件あります。設定の「完了したメモも表示」で見られます。',
       'settings.title': '設定', 'settings.close': '設定を閉じる', 'settings.showDone': '完了したメモも表示',
       'settings.keyboard': 'キーボード操作', 'settings.key': 'メモを追加するキー',
       'settings.keyInvalid': '英字か数字の1文字にしてください', 'settings.keyEmpty': 'キーを1文字入れてください',
@@ -119,7 +120,7 @@
       'api.empty_body': '本文が空です', 'api.too_large': 'リクエストが大きすぎます', 'api.bad_json': 'JSON が不正です',
       'api.bad_action': 'action が不正です', 'api.bad_project': 'project が不正です', 'api.unknown_project': 'project が見つかりません',
       'api.missing_header': 'ヘッダーがありません', 'api.method_not_allowed': 'GET か POST だけを受け付けます',
-      'api.auth_required': 'Basic 認証の情報が届いていません。サイトに Basic 認証をかけてください',
+      'api.auth_required': 'Basic 認証の情報が届いていません。サイトに Basic 認証をかけてください。認証なしで使う場合は、設定に allow_anonymous を書いてください',
       'api.corrupt_data': '保存データが壊れています。管理者に連絡してください',
       'api.save_failed': '保存できませんでした', 'api.read_failed': '保存データを読み込めませんでした',
       'api.backup_failed': '保存データを退避できませんでした', 'api.lock_failed': 'ロックを取れません',
@@ -150,6 +151,7 @@
       'viewer.edit': 'Edit', 'viewer.move': 'Move',
       'list.region': 'Note list', 'list.empty': 'No notes on this page yet.',
       'list.doneHidden': '{n} done notes are hidden. Turn on "Show done notes" in Settings to see them.',
+      'list.doneHidden1': '1 done note is hidden. Turn on "Show done notes" in Settings to see it.',
       'settings.title': 'Settings', 'settings.close': 'Close settings', 'settings.showDone': 'Show done notes',
       'settings.keyboard': 'Keyboard shortcut', 'settings.key': 'Key to add a note',
       'settings.keyInvalid': 'Use one letter or digit', 'settings.keyEmpty': 'Enter one key',
@@ -166,7 +168,7 @@
       'api.empty_body': 'The text is empty', 'api.too_large': 'The request is too large', 'api.bad_json': 'Invalid JSON',
       'api.bad_action': 'Invalid action', 'api.bad_project': 'Invalid project', 'api.unknown_project': 'Project not found',
       'api.missing_header': 'A required header is missing', 'api.method_not_allowed': 'Only GET and POST are allowed',
-      'api.auth_required': 'Basic authentication is not configured. Protect the site with Basic authentication',
+      'api.auth_required': 'Basic authentication is not configured. Protect the site with Basic authentication, or set allow_anonymous in the config to use it without authentication',
       'api.corrupt_data': 'The saved data is corrupted. Contact the administrator',
       'api.save_failed': 'Could not save', 'api.read_failed': 'Could not read the saved data',
       'api.backup_failed': 'Could not back up the saved data', 'api.lock_failed': 'Could not lock the saved data',
@@ -175,8 +177,9 @@
   };
   // 言語は data-lang を優先し、なければブラウザの言語で決める。日本語でなければ英語にする
   var LANG = (function () {
-    var fixed = ((script && script.dataset.lang) || '').toLowerCase();
-    if (MESSAGES[fixed]) return fixed;
+    // ja-JP のような地域付きの書き方も受け付ける。組み込みの名前を言語と取り違えないよう、自分のキーだけを見る
+    var fixed = ((script && script.dataset.lang) || '').toLowerCase().split('-')[0];
+    if (Object.prototype.hasOwnProperty.call(MESSAGES, fixed)) return fixed;
     var nav = (navigator.languages && navigator.languages[0]) || navigator.language || '';
     return /^ja\b/i.test(nav) ? 'ja' : 'en';
   })();
@@ -321,6 +324,8 @@
     // api.php の code があれば、画面の言語の文言にする。知らない code なら、api.php の文をそのまま出す
     var fail = function (res, data) {
       var known = data && data.code && MESSAGES.ja['api.' + data.code] != null ? t('api.' + data.code, data) : null;
+      // 設定の不備は原因が多いので、管理者のために api.php の文も添える
+      if (known && data.code === 'config' && data.error) known += t('error.colon') + data.error;
       var err = new Error(known || (data && data.error) || t('error.response', { n: res.status }));
       err.status = res.status;
       return err;
@@ -525,7 +530,10 @@
     var el = document.createElement(tag);
     // ツールの部品には言語を付ける。ページと言語が違っても、読み上げが正しく読めるように
     if (attrs && 'data-asternote' in attrs) el.setAttribute('lang', LANG);
+    // 利用者が書いた文字は、画面の言語ではなくページの言語で読ませる。英語の画面で日本語のメモを英語の声で読まないように
+    if (attrs && attrs['data-user-text'] != null) el.setAttribute('lang', document.documentElement.getAttribute('lang') || '');
     Object.keys(attrs || {}).forEach(function (k) {
+      if (k === 'data-user-text') return;
       if (k === 'text') el.textContent = attrs[k];
       else if (k.indexOf('on') === 0) el.addEventListener(k.slice(2), attrs[k]);
       else el.setAttribute(k, attrs[k]);
@@ -1372,9 +1380,9 @@
   function openEditor(note, anchor) {
     if (!requestClosePopover()) return;
     // 上限は api.php と同じ。超えた分が黙って切られないように、入力の時点で止める
-    var body = h('textarea', { placeholder: t('editor.bodyPlaceholder'), 'aria-label': t('editor.body'), maxlength: '2000' });
+    var body = h('textarea', { placeholder: t('editor.bodyPlaceholder'), 'aria-label': t('editor.body'), maxlength: '2000', 'data-user-text': '' });
     body.value = note ? note.body : '';
-    var author = h('input', { type: 'text', placeholder: ANONYMOUS, 'aria-label': t('editor.name'), autocomplete: 'name', maxlength: '40', value: (note && note.author) || ls.get('asternote:author') || '' });
+    var author = h('input', { type: 'text', 'data-user-text': '', placeholder: ANONYMOUS, 'aria-label': t('editor.name'), autocomplete: 'name', maxlength: '40', value: (note && note.author) || ls.get('asternote:author') || '' });
     // 種類と重要度は、押して選ぶボタンの並び。選んでいるものは aria-pressed で示す
     var segment = function (label, options, current) {
       var group = h('div', { class: 'pn-seg', role: 'group', 'aria-label': label });
@@ -1561,7 +1569,7 @@
         statusTag(s),
         imp ? starsEl(imp) : null,
       ]),
-      h('p', { class: 'pn-body', text: note.body }),
+      h('p', { class: 'pn-body', 'data-user-text': '', text: note.body }),
       metaEl('div', note),
       h('div', { class: 'pn-row' }, [toggleDone, edit, move]),
     ], num > 0 ? t('viewer.note', { n: num }) : t('viewer.noteNoNum'), returnTo || note.id);
@@ -1933,7 +1941,7 @@
     var items = visibleNumbered();
     if (!items.length) {
       var hidden = state.notes.length - items.length;
-      var text = hidden ? t('list.doneHidden', { n: hidden }) : t('list.empty');
+      var text = hidden ? t(hidden === 1 ? 'list.doneHidden1' : 'list.doneHidden', { n: hidden }) : t('list.empty');
       listPanel.appendChild(h('p', { class: 'pn-empty', text: text }));
       return;
     }
@@ -1955,7 +1963,7 @@
           isMemo(kindOf(n.kind)) ? null : h('span', { class: 'pn-kind' }, [iconEl(kindOf(n.kind).icon), h('span', { text: kindOf(n.kind).label })]),
           importanceOf(n) ? starsEl(importanceOf(n)) : null,
         ]),
-        h('span', { class: 'pn-line', text: n.body.length > 60 ? n.body.slice(0, 60) + '…' : n.body }),
+        h('span', { class: 'pn-line', 'data-user-text': '', text: n.body.length > 60 ? n.body.slice(0, 60) + '…' : n.body }),
         metaEl('span', n, 'pn-line'),
       ]);
       return h('li', {}, [item]);
@@ -1965,7 +1973,8 @@
   // 名前と日時の行。一覧ではボタンの中に置くので、要素の種類を選べるようにする
   function metaEl(tag, note, extra) {
     return h(tag, { class: 'pn-meta' + (extra ? ' ' + extra : '') }, [
-      document.createTextNode((note.author || ANONYMOUS) + '｜'),
+      note.author ? h('span', { 'data-user-text': '', text: note.author }) : document.createTextNode(ANONYMOUS),
+      document.createTextNode('｜'),
       timeEl(note.updatedAt || note.createdAt),
     ]);
   }

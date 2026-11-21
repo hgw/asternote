@@ -36,8 +36,13 @@ for (let i = 0; i < argv.length; i++) {
   }
   args[key] = argv[++i];
 }
-const { endpoint, project, out = 'notes.md', lang = 'ja' } = args;
-if (!endpoint || !project || !['ja', 'en'].includes(lang)) {
+const { endpoint, project, out = 'notes.md' } = args;
+const lang = (args.lang || 'ja').toLowerCase();
+if (!['ja', 'en'].includes(lang)) {
+  console.error(`asternote-export: --lang must be ja or en / --lang は ja か en にしてください: ${args.lang}`);
+  process.exit(1);
+}
+if (!endpoint || !project) {
   console.error(usage);
   process.exit(1);
 }
