@@ -12,6 +12,11 @@ for pattern in " * Version: $version" "define('ASTERNOTE_VERSION', '$version');"
     exit 1
   fi
 done
+# 設定のパネルに出す版の番号も確かめる
+if ! grep -qF "var VERSION = '$version';" asternote.js; then
+  echo "build-wordpress: asternote.js の VERSION が package.json の $version と違います" >&2
+  exit 1
+fi
 
 rm -rf dist/asternote
 mkdir -p dist/asternote
