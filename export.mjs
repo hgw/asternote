@@ -8,13 +8,18 @@
 //     --out docs/notes.md
 //
 // ASTERNOTE_AUTH は Basic 認証が必要なときだけ指定する。
+// --lang en で、英語の見出しと項目名で書き出す。省くと日本語にする。
 import { writeFile, mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
 // 引数は1つずつ読む。オプションの値に -h が来ても、使い方の表示と取り違えない
 // 知らないオプションは断る。書き間違いを黙って無視すると、思わぬ場所に書き出すため
-const usage = '使い方: asternote-export --endpoint <URL> --project <名前> [--out <ファイル>] [--site <URL>]';
-const KNOWN = ['endpoint', 'project', 'out', 'site'];
+// 使い方とエラーは、言語を読む前に出ることがあるので、英語と日本語の両方で書く
+const usage = [
+  'Usage: asternote-export --endpoint <URL> --project <name> [--out <file>] [--site <URL>] [--lang ja|en]',
+  '使い方: asternote-export --endpoint <URL> --project <名前> [--out <ファイル>] [--site <URL>] [--lang ja|en]',
+].join('\n');
+const KNOWN = ['endpoint', 'project', 'out', 'site', 'lang'];
 const args = {};
 const argv = process.argv.slice(2);
 for (let i = 0; i < argv.length; i++) {
@@ -25,17 +30,44 @@ for (let i = 0; i < argv.length; i++) {
   }
   const key = a.startsWith('--') ? a.slice(2) : null;
   if (!key || !KNOWN.includes(key) || argv[i + 1] === undefined) {
-    console.error(key && KNOWN.includes(key) ? `asternote-export: ${a} に値がありません` : `asternote-export: 知らない引数です: ${a}`);
+    console.error(key && KNOWN.includes(key) ? `asternote-export: ${a} needs a value / ${a} に値がありません` : `asternote-export: unknown argument / 知らない引数です: ${a}`);
     console.error(usage);
     process.exit(1);
   }
   args[key] = argv[++i];
 }
 const { endpoint, project, out = 'notes.md' } = args;
+const lang = (args.lang || 'ja').toLowerCase();
+if (!['ja', 'en'].includes(lang)) {
+  console.error(`asternote-export: --lang must be ja or en / --lang は ja か en にしてください: ${args.lang}`);
+  process.exit(1);
+}
 if (!endpoint || !project) {
   console.error(usage);
   process.exit(1);
 }
+
+// 書き出しの文言。asternote.js の辞書と同じ言葉を使う
+const M = {
+  ja: {
+    fetchFailed: '取得できませんでした', warning: 'サーバーの保存データに問題があるため、書き出しを中止しました',
+    kinds: { memo: 'メモ', idea: 'アイデア', fix: '修正', info: '質問・情報', like: 'いいね' },
+    open: '未完了', done: '完了', anonymous: 'ななしさん', area: '範囲',
+    title: '画面メモ', fetched: '取得', count: '件数',
+    about: 'プレビュー画面に残したメモを、ページ別に書き出したもの。このファイルは自動生成なので、直接編集しない。',
+    tag: (s) => `［${s}］`, meta: (s) => `（${s}）`, sep: '、', titleSep: '｜', label: (k, v) => `${k}: ${v}`,
+    written: (n, f) => `${n}件を書き出しました: ${f}`,
+  },
+  en: {
+    fetchFailed: 'Could not fetch the notes', warning: 'Export stopped because the saved data on the server has a problem',
+    kinds: { memo: 'Note', idea: 'Idea', fix: 'Fix', info: 'Question', like: 'Like' },
+    open: 'Open', done: 'Done', anonymous: 'Anonymous', area: 'Area',
+    title: 'Screen notes', fetched: 'Fetched', count: 'Notes',
+    about: 'Notes left on preview pages, grouped by page. This file is generated, so do not edit it by hand.',
+    tag: (s) => `[${s}] `, meta: (s) => ` (${s})`, sep: ', ', titleSep: ' | ', label: (k, v) => `${k}: ${v}`,
+    written: (n, f) => `Wrote ${n} note${n === 1 ? '' : 's'}: ${f}`,
+  },
+}[lang];
 
 const headers = {};
 if (process.env.ASTERNOTE_AUTH) {
@@ -45,19 +77,19 @@ if (process.env.ASTERNOTE_AUTH) {
 // WordPress の admin-ajax.php?action=asternote のように、URL にすでに ? があれば & でつなぐ
 const res = await fetch(`${endpoint}${endpoint.includes('?') ? '&' : '?'}project=${encodeURIComponent(project)}`, { headers });
 if (!res.ok) {
-  console.error(`取得できませんでした: ${res.status} ${res.statusText}`);
+  console.error(`${M.fetchFailed}: ${res.status} ${res.statusText}`);
   process.exit(1);
 }
 // 保存データが壊れていると、API は空の一覧を返す。そのまま書くと既存の notes.md の内容が消えるので止める
 if (res.headers.get('X-Asternote-Warning')) {
-  console.error(`サーバーの保存データに問題があるため、書き出しを中止しました: ${res.headers.get('X-Asternote-Warning')}`);
+  console.error(`${M.warning}: ${res.headers.get('X-Asternote-Warning')}`);
   process.exit(1);
 }
 const { notes } = await res.json();
 
 // 種類の表示名と重要度の上限。asternote.js と api.php にも同じ値がある。変えるときは3か所をそろえる
 // 「メモ」は書き出しでは付けない
-const KINDS = { memo: 'メモ', idea: 'アイデア', fix: '修正', info: '質問・情報', like: 'いいね' };
+const KINDS = M.kinds;
 const MAX_IMPORTANCE = 3;
 // 丸め方は asternote.js と api.php と同じ。数として読めない値は 0、小数は切り捨て、範囲外は端に寄せる
 const importanceOf = (v) => {
@@ -68,10 +100,10 @@ const importanceOf = (v) => {
 
 // メモは未完了か完了のどちらか。status が done なら完了、それ以外は未完了。v0.3.0 までの decided も未完了になる
 const STATUS = [
-  ['未完了', (n) => n.status !== 'done'],
-  ['完了', (n) => n.status === 'done'],
+  [M.open, (n) => n.status !== 'done'],
+  [M.done, (n) => n.status === 'done'],
 ];
-const ANONYMOUS = 'ななしさん';
+const ANONYMOUS = M.anonymous;
 // ページへのリンクに使うサイトの URL。省くと API と同じ場所にする
 // WordPress で管理画面と表のサイトのホストが違うときは、--site に表のサイトを渡す
 const site = new URL(args.site || endpoint).origin;
@@ -99,31 +131,31 @@ for (const n of notes.sort((a, b) => a.createdAt.localeCompare(b.createdAt))) {
 }
 
 const lines = [
-  '# 画面メモ',
+  `# ${M.title}`,
   '',
-  `取得: ${day(new Date())}`,
-  `件数: ${notes.length}`,
+  M.label(M.fetched, day(new Date())),
+  M.label(M.count, notes.length),
   '',
-  'プレビュー画面に残したメモを、ページ別に書き出したもの。このファイルは自動生成なので、直接編集しない。',
+  M.about,
   '',
 ];
 
 for (const [page, list] of [...byPage].sort(([a], [b]) => a.localeCompare(b))) {
   const title = text(list.find((n) => n.title)?.title ?? '');
   lines.push(`## ${text(page)}`, '');
-  if (title) lines.push(`${title}｜${url(site + page)}`, '');
+  if (title) lines.push(`${title}${M.titleSep}${url(site + page)}`, '');
   for (const [label, match] of STATUS) {
     const items = list.filter(match);
     if (!items.length) continue;
     lines.push(`### ${label}`, '');
     for (const n of items) {
-      const meta = [text(n.author) || ANONYMOUS, day(n.updatedAt || n.createdAt)].filter(Boolean).join('、');
-      const area = n.rx2 != null && n.ry2 != null ? '［範囲］' : '';
+      const meta = [text(n.author) || ANONYMOUS, day(n.updatedAt || n.createdAt)].filter(Boolean).join(M.sep);
+      const area = n.rx2 != null && n.ry2 != null ? M.tag(M.area) : '';
       // 自分のキーだけを見る。constructor などの組み込みの名前を種類として拾わないように
-      const kind = Object.hasOwn(KINDS, n.kind) && n.kind !== 'memo' ? `［${KINDS[n.kind]}］` : '';
+      const kind = Object.hasOwn(KINDS, n.kind) && n.kind !== 'memo' ? M.tag(KINDS[n.kind]) : '';
       const imp = importanceOf(n.importance);
       const star = imp ? `${'★'.repeat(imp)} ` : '';
-      lines.push(`- ${area}${kind}${star}${text(n.body)}（${meta}）`);
+      lines.push(`- ${area}${kind}${star}${text(n.body)}${M.meta(meta)}`);
     }
     lines.push('');
   }
@@ -131,4 +163,4 @@ for (const [page, list] of [...byPage].sort(([a], [b]) => a.localeCompare(b))) {
 
 await mkdir(dirname(out), { recursive: true });
 await writeFile(out, lines.join('\n'));
-console.log(`${notes.length}件を書き出しました: ${out}`);
+console.log(M.written(notes.length, out));

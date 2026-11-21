@@ -3,7 +3,7 @@
  * Plugin Name: Asternote
  * Plugin URI: https://github.com/hgw/asternote
  * Description: プレビュー画面にピンと範囲でメモを残す。wp-config.php に ASTERNOTE_DATA_DIR を書いたときだけ動く。
- * Version: 0.10.0
+ * Version: 0.11.0
  * Requires PHP: 7.4
  * License: MIT
  *
@@ -34,7 +34,7 @@ if ($asternote_ok && defined('ASTERNOTE_PROJECT') && !(is_string(ASTERNOTE_PROJE
     $asternote_ok = false;
 }
 if ($asternote_ok) {
-    define('ASTERNOTE_VERSION', '0.10.0');
+    define('ASTERNOTE_VERSION', '0.11.0');
     define('ASTERNOTE_AJAX_ACTION', 'asternote');
 
     /** script タグと API で使う project 名。形は上で確かめてある */
@@ -54,11 +54,14 @@ if ($asternote_ok) {
         $src = add_query_arg('ver', ASTERNOTE_VERSION, plugins_url('asternote.js', __FILE__));
         // 相対 URL にして、表のサイトと同じ場所に送る。管理画面だけ https や別のホストのとき、別サイト扱いで保存できなくなるため
         $endpoint = add_query_arg('action', ASTERNOTE_AJAX_ACTION, admin_url('admin-ajax.php', 'relative'));
+        // 画面の言語は、サイトの言語に合わせる。日本語のサイトなら日本語、それ以外は英語
+        $lang = strpos(get_locale(), 'ja') === 0 ? 'ja' : 'en';
         printf(
-            '<script src="%s" data-endpoint="%s" data-project="%s"%s defer></script>' . "\n",
+            '<script src="%s" data-endpoint="%s" data-project="%s" data-lang="%s"%s defer></script>' . "\n",
             esc_url($src),
             esc_url($endpoint),
             esc_attr(asternote_project()),
+            esc_attr($lang),
             asternote_flag('ASTERNOTE_DEFAULT_ON') ? ' data-default="on"' : ''
         );
     });
