@@ -25,7 +25,7 @@
 GitHub から npm で入れる。バージョンはタグで指定する。
 
 ```sh
-npm i github:hgw/asternote#v0.8.3
+npm i github:hgw/asternote#v0.8.4
 ```
 
 `asternote-copy` で、`asternote.js` と `api.php` を公開ディレクトリに複製する。
@@ -106,7 +106,7 @@ require __DIR__ . '/asternote/asternote.php';
 3. ページに script タグを足す
 
    ```html
-   <script src="https://cdn.jsdelivr.net/gh/hgw/asternote@v0.8.3/asternote.js"
+   <script src="https://cdn.jsdelivr.net/gh/hgw/asternote@v0.8.4/asternote.js"
            data-endpoint="/asternote/api.php"
            data-project="myproject" defer></script>
    ```
@@ -168,7 +168,7 @@ html {
 | `--asternote-primary` | キーカラー。主なボタンと、選択中のボタンの背景 | `#3f3f46` |
 | `--asternote-ring` | フォーカスリング | `#3f3f46` |
 | `--asternote-danger` | 削除の色 | `#b91c1c` |
-| `--asternote-open` | 未完了のピンの色 | `#45685c` |
+| `--asternote-open` | 未完了のピンの色 | `#2b8265` |
 | `--asternote-done` | 完了のピンの色 | `#52525b` |
 | `--asternote-star` | 重要度の星の色 | `#2b8265` |
 | `--asternote-radius` | 角丸 | `8px` |
