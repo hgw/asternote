@@ -25,7 +25,7 @@
 GitHub から npm で入れる。バージョンはタグで指定する。
 
 ```sh
-npm i github:hgw/asternote#v0.8.2
+npm i github:hgw/asternote#v0.8.3
 ```
 
 `asternote-copy` で、`asternote.js` と `api.php` を公開ディレクトリに複製する。
@@ -106,7 +106,7 @@ require __DIR__ . '/asternote/asternote.php';
 3. ページに script タグを足す
 
    ```html
-   <script src="https://cdn.jsdelivr.net/gh/hgw/asternote@v0.8.2/asternote.js"
+   <script src="https://cdn.jsdelivr.net/gh/hgw/asternote@v0.8.3/asternote.js"
            data-endpoint="/asternote/api.php"
            data-project="myproject" defer></script>
    ```
@@ -165,12 +165,12 @@ html {
 | `--asternote-bg` | バーや吹き出しの背景 | `#fff` |
 | `--asternote-subtle` | ボタンの背景 | `#f4f4f5` |
 | `--asternote-input` | 入力欄の枠 | `#71717a` |
-| `--asternote-primary` | キーカラー。主なボタンと、選択中のボタンの背景 | `#047857` |
-| `--asternote-ring` | フォーカスリング | `#047857` |
+| `--asternote-primary` | キーカラー。主なボタンと、選択中のボタンの背景 | `#3f3f46` |
+| `--asternote-ring` | フォーカスリング | `#3f3f46` |
 | `--asternote-danger` | 削除の色 | `#b91c1c` |
-| `--asternote-open` | 未完了のピンの色 | `#c2410c` |
+| `--asternote-open` | 未完了のピンの色 | `#45685c` |
 | `--asternote-done` | 完了のピンの色 | `#52525b` |
-| `--asternote-star` | 重要度の星の色 | `#b45309` |
+| `--asternote-star` | 重要度の星の色 | `#2b8265` |
 | `--asternote-radius` | 角丸 | `8px` |
 
 初期値は WCAG 2.2 AA のコントラストを満たす。変えるときも、次の比を保つ。
@@ -261,6 +261,13 @@ ASTERNOTE_AUTH="user:pass" node export.mjs \
   - 作成のときだけ、`<名前>.json.corrupt-<日時>` に退避して空から続ける。中身は手で戻せる
 - 書き込みは一時ファイルに書いてから置き換える。失敗したらエラーを返し、元のファイルは残る
 - 読み取りは共有ロック、書き込みは排他ロックを取る
+
+## 見本ページ
+
+`dev/catalog.html` は、デザイントークン、アイコン、部品を1枚で見る開発用のページ。
+リポジトリのルートで `php -S 127.0.0.1:8767` を動かし、`http://127.0.0.1:8767/dev/catalog.html` を開く。
+トークンの初期値とアイコンは `asternote.js` から読み取る。部品の HTML は手で書いているので、部品を変えたら合わせて直す。
+このページは npm のパッケージにも WordPress の zip にも入らない。
 
 ## pin-notes からの移行
 
