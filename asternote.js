@@ -99,6 +99,7 @@
     'lightbulb': '<path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/>',
     'wrench': '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.106-3.105c.32-.322.863-.22.983.218a6 6 0 0 1-8.259 7.057l-7.91 7.91a1 1 0 0 1-2.999-3l7.91-7.91a6 6 0 0 1 7.057-8.259c.438.12.54.662.219.984z"/>',
     'circle-help': '<circle cx="12" cy="12" r="10"/><path d="M9 9.5a3 2.5 0 016 0c0 2-2 2-3 3.5"/><path d="M12 17h.01"/>',
+    'asterism': '<path d="M12 2v8"/><path d="m14.5 15 7 4"/><path d="m14.5 19 7-4"/><path d="M18 13v8"/><path d="m2.5 15 7 4"/><path d="m2.5 19 7-4"/><path d="M6 13v8"/><path d="m8.5 4 7 4"/><path d="m8.5 8 7-4"/>',
     'heart': '<path d="M2 9.5a5.5 5.5 0 0 1 9.591-3.676.56.56 0 0 0 .818 0A5.49 5.49 0 0 1 22 9.5c0 2.29-1.5 4-3 5.5l-5.492 5.313a2 2 0 0 1-3 .019L5 15c-1.5-1.5-3-3.2-3-5.5"/>',
   };
   var KINDS = [
@@ -526,7 +527,7 @@
     document.body.appendChild(bar);
 
     if (config.ui !== 'none') {
-      launcher = h('button', { type: 'button', class: 'pn-btn pn-launch', 'data-asternote': '', onclick: function () { api.toggle(); } }, label('sticky-note', 'メモ'));
+      launcher = h('button', { type: 'button', class: 'pn-btn pn-launch', 'data-asternote': '', onclick: function () { api.toggle(); } }, label('asterism', 'メモ'));
       document.body.appendChild(launcher);
     }
 
