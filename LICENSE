@@ -23,7 +23,7 @@ SOFTWARE.
 ---
 
 asternote.js には Lucide v1.76.0 のアイコンを埋め込んでいる。https://lucide.dev
-使っているアイコン: plus, x, arrow-left, move, list, pencil, trash-2, check, sticky-note, lightbulb, wrench, circle-help, heart
+使っているアイコン: plus, x, arrow-left, move, list, pencil, trash-2, check, sticky-note, lightbulb, wrench, circle-help, heart, settings, grip-vertical
 Lucide のライセンスは次のとおり。
 
 ISC License

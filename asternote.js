@@ -15,8 +15,11 @@
  * ドラッグを使わずに、2つの角のクリックで範囲を指定したり、吹き出しの「移動」とクリックでピンを動かしたりもできる。
  * キーボードでは、置く位置を十字のカーソルで示す。矢印キーで動かし、Enter で決める。
  * 完了したメモは、バーの「完了も表示」にチェックを入れたときだけ表示する。
+ * バーの設定ボタンで、キーでメモを置く、バーを隠す、バーの位置を選べる。設定は見る人のブラウザに保存する。
+ * バーはつまみのドラッグで、画面の辺のどこにでも動かせる。
  * data-asternote-ignore 属性を付けた要素の中では、メモを置くクリックを横取りしない。
  * 表示中は html に --asternote-offset を設定する。値は画面下端からバーや一覧の上端までの高さで、余白は含まない。
+ * バーが下の辺にないときは設定しない。
  * 左下に置くほかの部品は、この値に余白を足した分だけ上に逃げれば重ならない。
  * 色と角丸は、html などに CSS 変数 --asternote-primary などを書くと上書きできる。一覧は injectStyle() にある。
  *
@@ -59,6 +62,9 @@
 (function () {
   'use strict';
 
+  // 版の番号。package.json と同じ値にする。scripts/build-wordpress.sh が確かめる
+  var VERSION = '0.9.0';
+
   var script = document.currentScript;
   var config = {
     endpoint: (script && script.dataset.endpoint) || '',
@@ -99,6 +105,8 @@
     'lightbulb': '<path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/>',
     'wrench': '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.106-3.105c.32-.322.863-.22.983.218a6 6 0 0 1-8.259 7.057l-7.91 7.91a1 1 0 0 1-2.999-3l7.91-7.91a6 6 0 0 1 7.057-8.259c.438.12.54.662.219.984z"/>',
     'circle-help': '<circle cx="12" cy="12" r="10"/><path d="M9 9.5a3 2.5 0 016 0c0 2-2 2-3 3.5"/><path d="M12 17h.01"/>',
+    'settings': '<path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/>',
+    'grip-vertical': '<circle cx="9" cy="12" r="1"/><circle cx="9" cy="5" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="19" r="1"/>',
     'heart': '<path d="M2 9.5a5.5 5.5 0 0 1 9.591-3.676.56.56 0 0 0 .818 0A5.49 5.49 0 0 1 22 9.5c0 2.29-1.5 4-3 5.5l-5.492 5.313a2 2 0 0 1-3 .019L5 15c-1.5-1.5-3-3.2-3-5.5"/>',
   };
   // Asternote のロゴ。星と3本の線。塗りの図形で、Lucide とは描き方が違うので、svg ごと持つ
@@ -150,6 +158,30 @@
     set: function (k, v) { try { localStorage.setItem(k, v); } catch (e) { /* 保存できなくても続ける */ } },
   };
   var KEY = 'asternote:' + config.project + ':';
+
+  // ---------- 見る人ごとの設定 ----------
+  // ブラウザに保存する。サイトごとに別の設定になる。壊れた値や知らない値は、初期値に戻す
+  // バーの位置は、辺と、辺に沿った割合 t で持つ。t は 0 が左端か上端、1 が右端か下端
+  // 四隅は上か下の辺として持つ。左右の辺の t は 0 と 1 にならない
+  var EDGES = ['top', 'right', 'bottom', 'left'];
+  var KEY_CHAR = /^[a-z0-9]$/;
+  var DEFAULT_PREFS = { key: false, keyChar: 'c', hideBar: false, edge: 'bottom', t: 0 };
+  var prefs = loadPrefs();
+  function loadPrefs() {
+    var saved = {};
+    try { saved = JSON.parse(ls.get(KEY + 'prefs') || '{}') || {}; } catch (e) { saved = {}; }
+    var p = Object.assign({}, DEFAULT_PREFS);
+    if (typeof saved.key === 'boolean') p.key = saved.key;
+    if (typeof saved.keyChar === 'string' && KEY_CHAR.test(saved.keyChar)) p.keyChar = saved.keyChar;
+    // キーがオフのままバーを隠すと、戻す手段がなくなる。保存した値が食い違っていても、隠さない
+    if (saved.hideBar === true && p.key) p.hideBar = true;
+    if (EDGES.indexOf(saved.edge) >= 0 && typeof saved.t === 'number' && isFinite(saved.t)) {
+      p.edge = saved.edge;
+      p.t = Math.min(1, Math.max(0, saved.t));
+    }
+    return p;
+  }
+  function savePrefs() { ls.set(KEY + 'prefs', JSON.stringify(prefs)); }
 
   var pagePath = function () {
     var p = location.pathname.replace(/index\.html$/, '');
@@ -367,7 +399,7 @@
 
   // ---------- 画面 ----------
   var state = { enabled: false, placing: false, notes: [], openId: null, showDone: false };
-  var layer, bar, popover, listPanel, launcher;
+  var layer, bar, popover, listPanel, settingsPanel, launcher;
   var listeners = [];
 
   function h(tag, attrs, children) {
@@ -424,14 +456,18 @@
       'html.pn-placing [data-asternote],html.pn-placing [data-asternote] *,html.pn-placing [data-asternote-ignore],html.pn-placing [data-asternote-ignore] *{cursor:auto!important}',
       'html.pn-placing [data-asternote] button,html.pn-placing [data-asternote-ignore] button,html.pn-placing [data-asternote-ignore] a{cursor:pointer!important}',
       // 浮いている面の枠は飾りなので薄くてよい
-      '.pn-island,.pn-pop,.pn-list,.pn-close{border:1px solid var(--pn-border);border-radius:var(--pn-radius);background:var(--pn-bg);box-shadow:0 8px 16px rgba(0,0,0,.12)}',
+      '.pn-island,.pn-pop,.pn-list,.pn-settings,.pn-close{border:1px solid var(--pn-border);border-radius:var(--pn-radius);background:var(--pn-bg);box-shadow:0 8px 16px rgba(0,0,0,.12)}',
       '.pn-bar{position:fixed;left:12px;bottom:12px;z-index:2147483001;display:flex;align-items:center;gap:8px;max-width:calc(100vw - 24px)}',
-      '.pn-island{display:flex;flex-wrap:wrap;gap:6px;align-items:center;min-width:0;padding:6px}',
+      // バーの高さは決め打ちにする。置くモードや通知で中身が変わっても、高さが変わらないように
+      // 折り返さず、入りきらない案内と通知は末尾を省略する。読み上げでは全文を読む
+      '.pn-island{display:flex;flex-wrap:nowrap;gap:6px;align-items:center;min-width:0;height:46px;padding:6px}',
+      '.pn-island>*{flex:none}',
+      '.pn-island .pn-seg{flex-wrap:nowrap}',
       '.pn-close{display:inline-flex;flex:none;align-items:center;justify-content:center;width:36px;height:36px;padding:0;border-radius:999px;color:var(--pn-fg);cursor:pointer}',
       '.pn-close:hover{background:var(--pn-subtle)}',
       // ボタンは文字で分かるので、枠のコントラストには頼らない
       '.pn-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:32px;padding:0 12px;border:1px solid transparent;border-radius:calc(var(--pn-radius) - 2px);background:var(--pn-subtle);color:var(--pn-fg);font:inherit;font-weight:500;line-height:1;cursor:pointer;white-space:nowrap}',
-      '.pn-btn:hover{background:var(--pn-subtle-hover)}',
+      '.pn-btn:hover,.pn-btn[aria-expanded="true"]{background:var(--pn-subtle-hover)}',
       '.pn-btn.is-on,.pn-btn--primary{background:var(--pn-primary);color:var(--pn-primary-fg)}',
       '.pn-btn.is-on:hover,.pn-btn--primary:hover{background:color-mix(in srgb,var(--pn-primary) 85%,#000)}',
       '.pn-btn--danger{background:var(--pn-bg);border-color:var(--pn-danger);color:var(--pn-danger)}',
@@ -440,9 +476,12 @@
       // 読み上げにだけ使う欄。画面には出さない
       '.pn-sr{position:absolute;width:1px;height:1px;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}',
       '.pn-btn--icon{min-width:32px;padding:0 8px}',
+      '.pn-island>.pn-hint,.pn-island>.pn-notice{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
       '.pn-hint{padding:0 6px;color:var(--pn-muted)}',
       // 置くモードの間は、案内の欄の幅を確保する。段階や置き方で文が変わっても、バーの幅が変わらないように
-      'html.pn-placing .pn-hint{min-width:17em}',
+      // 画面が狭いときは縮める
+      // 幅も指定する。指定しないと、バーの幅が案内の文の長さで決まってしまう
+      'html.pn-placing .pn-island>.pn-hint{flex:0 1 17em;width:17em}',
       '.pn-hint:empty{display:none}',
       '.pn-check{display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:0 6px;cursor:pointer;white-space:nowrap}',
       '.pn-check input{width:16px;height:16px;margin:0;accent-color:var(--pn-primary)}',
@@ -451,7 +490,7 @@
       '.pn-error:empty{display:none}',
       '.pn-pop{position:absolute;z-index:2147483002;width:300px;max-width:calc(100vw - 16px);overflow:auto;padding:14px}',
       '.pn-pop:focus{outline:none}',
-      '.pn-pop textarea,.pn-pop input[type="text"],.pn-pop select{display:block;width:100%;min-height:32px;margin:6px 0;padding:6px 8px;border:1px solid var(--pn-input);border-radius:calc(var(--pn-radius) - 2px);background:var(--pn-bg);color:var(--pn-fg);font:inherit}',
+      '.pn-pop textarea,.pn-pop input[type="text"],.pn-pop select,.pn-settings input[type="text"]{display:block;width:100%;min-height:32px;margin:6px 0;padding:6px 8px;border:1px solid var(--pn-input);border-radius:calc(var(--pn-radius) - 2px);background:var(--pn-bg);color:var(--pn-fg);font:inherit}',
       '.pn-pop textarea{min-height:88px;resize:vertical}',
       '.pn-title{margin:0 0 4px;padding-right:32px;font-weight:600;font-size:14px}',
       '.pn-x{position:absolute;top:8px;right:8px;display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;padding:0;border:0;border-radius:999px;background:none;color:var(--pn-muted);cursor:pointer}',
@@ -480,7 +519,23 @@
       '.pn-item{display:block;width:100%;padding:8px;border:0;border-radius:calc(var(--pn-radius) - 2px);background:none;color:inherit;font:inherit;text-align:left;cursor:pointer}',
       '.pn-item:hover{background:var(--pn-subtle)}',
       '.pn-empty{margin:0;padding:10px;color:var(--pn-muted)}',
-      '.pn-launch{position:fixed;left:12px;bottom:12px;z-index:2147483001;box-shadow:0 4px 8px rgba(0,0,0,.15)}',
+      // 起動ボタンは、バーと同じ高さと見た目にする。開いたり閉じたりしても、高さが変わらないように
+      '.pn-launch{position:fixed;left:12px;bottom:12px;z-index:2147483001;height:46px;padding:0 16px;border:1px solid var(--pn-border);border-radius:var(--pn-radius);background:var(--pn-bg);box-shadow:0 8px 16px rgba(0,0,0,.12)}',
+      '.pn-launch:hover{background:var(--pn-subtle)}',
+      // バーを動かすつまみ。キーボードでは設定の中から位置を選ぶので、フォーカスは当てない
+      '.pn-grip{display:inline-flex;align-items:center;justify-content:center;width:20px;min-height:32px;margin-right:-2px;border-radius:calc(var(--pn-radius) - 2px);color:var(--pn-muted);cursor:grab;touch-action:none}',
+      '.pn-grip:hover{background:var(--pn-subtle)}',
+      '.pn-bar.is-moving,.pn-bar.is-moving *{cursor:grabbing!important;user-select:none}',
+      '.pn-settings{position:fixed;left:12px;bottom:64px;z-index:2147483001;width:300px;max-width:calc(100vw - 24px);max-height:60vh;overflow:auto;padding:14px}',
+      '.pn-settings .pn-check{padding:0}',
+      '.pn-field{display:flex;align-items:center;gap:8px;margin:4px 0 0 22px}',
+      '.pn-settings input.pn-key{display:inline-block;width:3em;margin:0;text-align:center;text-transform:uppercase}',
+      // エラーの欄は、空でも高さを取っておく。文言が出ても、パネルの高さが変わらないように
+      '.pn-field-error{min-height:18px;margin:2px 0 0 22px;color:var(--pn-danger);font-size:12px;line-height:18px}',
+      '.pn-sub{margin:0 0 0 22px;color:var(--pn-muted);font-size:12px}',
+      '.pn-pos{display:grid;grid-template-columns:repeat(3,max-content);gap:4px}',
+      '.pn-pos button{justify-content:center;min-width:44px}',
+      '.pn-foot{margin:12px 0 0;padding-top:8px;border-top:1px solid var(--pn-border);color:var(--pn-muted);font-size:12px}',
     ].join('\n');
     document.head.appendChild(h('style', { 'data-asternote-style': '' }, [document.createTextNode(css)]));
   }
@@ -517,11 +572,19 @@
         onclick: function () { setPlaceMode(m[0]); },
       }, [document.createTextNode(m[1])]));
     });
-    var island = h('div', { class: 'pn-island' }, [addBtn, modeSeg, listBtn, showDoneLabel, hint, notice]);
+    // 設定はアイコンだけのボタン。名前は aria-label で付ける
+    var settingsBtn = h('button', {
+      type: 'button', class: 'pn-btn pn-btn--icon', 'aria-label': '設定', title: '設定',
+      'aria-expanded': 'false', 'aria-controls': 'pn-settings', onclick: function () { toggleSettings(); },
+    }, [iconEl('settings')]);
+    // つまみはマウスとタッチ用。キーボードと読み上げでは、設定の中の位置の選択を使う
+    var grip = h('span', { class: 'pn-grip', 'aria-hidden': 'true', title: 'ドラッグでバーを動かす', onpointerdown: onGripDown }, [iconEl('grip-vertical')]);
+    var island = h('div', { class: 'pn-island' }, [grip, addBtn, modeSeg, listBtn, showDoneLabel, settingsBtn, hint, notice]);
     bar = h('div', { class: 'pn-bar', 'data-asternote': '', role: 'region', 'aria-label': 'メモ', hidden: '' }, [island, closeBtn]);
     bar.addBtn = addBtn;
     bar.listBtn = listBtn;
     bar.showDone = showDoneLabel;
+    bar.settingsBtn = settingsBtn;
     bar.modeSeg = modeSeg;
     bar.hint = hint;
     bar.notice = notice;
@@ -548,21 +611,30 @@
         if (e.target !== cursorEl) { cursorEl.focus({ preventScroll: true }); onCursorKey(e); }
         return;
       }
+      if (isShortcut(e)) {
+        e.preventDefault();
+        onShortcut();
+        return;
+      }
       if (e.key !== 'Escape') return;
       if (cancelGesture) cancelGesture(); // 範囲を引いている途中やピンのドラッグ中なら、それを取り消す
       if (state.placing) setPlacing(false);
-      else requestClosePopover();
+      else if (popover) requestClosePopover();
+      else if (isOpen(settingsPanel)) closeSettings(true);
     });
     var reflow = debounce(updatePositions, 100);
     window.addEventListener('resize', reflow);
-    // バーや一覧の大きさが変わったら、避ける高さを更新する。一覧の max-height は画面の高さで変わるが、
+    window.addEventListener('resize', layoutBar);
+    // バーや一覧の大きさが変わったら、置き直して、避ける高さを更新する。一覧の max-height は画面の高さで変わるが、
     // そのときも要素の大きさが変わるので、この監視で拾える。外さないこと
     if (window.ResizeObserver) {
-      offsetObserver = new ResizeObserver(updateOffset);
+      offsetObserver = new ResizeObserver(layoutBar);
       offsetObserver.observe(bar);
+      if (launcher) offsetObserver.observe(launcher);
     }
     window.addEventListener('load', reflow);
     if (window.ResizeObserver) new ResizeObserver(reflow).observe(document.body);
+    layoutBar();
     // 固定表示やスクロールする枠の中の要素にも追従するよう、スクロールのたびに位置を計算し直す
     var ticking = false;
     document.addEventListener('scroll', function () {
@@ -598,8 +670,10 @@
     // 置いている間は、置く操作に関係のない部品を隠す。一覧も閉じる
     bar.listBtn.hidden = on;
     bar.showDone.hidden = on;
+    bar.settingsBtn.hidden = on;
     bar.modeSeg.hidden = !on || !!state.moveTarget;
     if (on && listPanel && !listPanel.hidden) toggleList();
+    if (on) closeSettings(false);
     setPlaceMode('point');
     if (on && opts.keyboard) showCursor();
     if (!on) {
@@ -608,6 +682,7 @@
       // マウスで移動を始めて取り消したときは、動かそうとしたピンに戻す。吹き出しを閉じたときに外れているため
       else if (wasMoving && (!active || active === document.body)) restoreFocus(wasMoving);
     }
+    updateBarVisibility();
   }
 
   function setPlaceMode(mode) {
@@ -831,8 +906,10 @@
   // 吹き出しの外側を押したら閉じる。ピンを押したときは、そのピンの吹き出しを開くので任せる
   // 書きかけの内容がある編集中の吹き出しは、うっかり消えないように閉じない
   function onOutsidePointerDown(e) {
-    if (!popover || state.placing) return;
     var t = e.target;
+    // 設定は、バーと設定の外を押したら閉じる
+    if (isOpen(settingsPanel) && !settingsPanel.contains(t) && !bar.contains(t)) closeSettings(false);
+    if (!popover || state.placing) return;
     if (popover.contains(t) || (t.closest && t.closest('.pn-pin'))) return;
     requestClosePopover(KEEP_FOCUS);
   }
@@ -1065,6 +1142,7 @@
     }
     popover = null;
     state.openId = null;
+    updateBarVisibility();
     if (back) restoreFocus(back);
   }
 
@@ -1090,6 +1168,7 @@
       [h('h2', { class: 'pn-title', id: titleId, text: title }), close].concat(children));
     popover.returnTo = returnTo || (document.activeElement !== document.body ? document.activeElement : null);
     document.body.appendChild(popover);
+    updateBarVisibility();
     // 中身が増えて高さが変わったら、置き直す。エラーや確認の文言が出て、画面の下にはみ出すことがあるため
     if (window.ResizeObserver) {
       if (!popoverObserver) popoverObserver = new ResizeObserver(function () { movePopover(); });
@@ -1329,8 +1408,10 @@
     }
     listPanel.hidden = !listPanel.hidden;
     bar.listBtn.setAttribute('aria-expanded', String(!listPanel.hidden));
-    if (!listPanel.hidden) renderList();
-    updateOffset();
+    // 一覧と設定は同じ場所に開くので、同時には開かない
+    if (!listPanel.hidden) { closeSettings(false); renderList(); }
+    updateBarVisibility();
+    layoutBar();
   }
 
   // 画面下端から、バーや一覧の上端までの高さ。左下に置くほかの部品がこの分だけ上に逃げられるようにする
@@ -1339,7 +1420,8 @@
   var offsetObserver = null;
   function updateOffset() {
     var style = document.documentElement.style;
-    if (!state.enabled || !bar || bar.hidden) {
+    // 下の辺以外にバーがあるときは、左下の部品と重ならないので設定しない
+    if (!state.enabled || !bar || bar.hidden || prefs.edge !== 'bottom') {
       style.removeProperty('--asternote-offset');
       return;
     }
@@ -1347,6 +1429,264 @@
     var offset = reach(bar);
     if (listPanel && !listPanel.hidden) offset = Math.max(offset, reach(listPanel));
     style.setProperty('--asternote-offset', Math.round(offset) + 'px');
+  }
+
+  // ---------- バーの位置と設定 ----------
+  var EDGE_GAP = 12;
+  var isOpen = function (el) { return !!el && !el.hidden; };
+
+  // バーを出すかどうか。「バーを隠す」がオンのときは、操作の途中だけ出す
+  function updateBarVisibility() {
+    if (!bar) return;
+    var show = state.enabled && (!prefs.hideBar || state.placing || !!popover || isOpen(listPanel) || isOpen(settingsPanel));
+    if (bar.hidden !== !show) {
+      bar.hidden = !show;
+      layoutBar();
+    }
+  }
+
+  // バー、起動ボタン、一覧と設定を置き直し、避ける高さを更新する
+  function layoutBar() {
+    if (!bar) return;
+    if (!bar.hidden) placeOnEdge(bar);
+    if (launcher && !launcher.hidden) placeOnEdge(launcher);
+    placePanel(listPanel);
+    placePanel(settingsPanel);
+    updateOffset();
+  }
+
+  // 要素を、設定した辺の位置に置く。辺の端に近い側から測る
+  // 右寄りの要素を左から測ると、幅が増えたときに画面の外へはみ出すため
+  function placeOnEdge(el) {
+    var root = document.documentElement;
+    var s = el.style;
+    var horizontal = prefs.edge === 'top' || prefs.edge === 'bottom';
+    var room = horizontal ? root.clientWidth - el.offsetWidth : root.clientHeight - el.offsetHeight;
+    var range = Math.max(0, room - EDGE_GAP * 2);
+    var near = prefs.t <= 0.5;
+    var along = Math.round(EDGE_GAP + (near ? prefs.t : 1 - prefs.t) * range) + 'px';
+    var across = EDGE_GAP + 'px';
+    s.left = s.right = s.top = s.bottom = 'auto';
+    if (horizontal) {
+      s[near ? 'left' : 'right'] = along;
+      s[prefs.edge] = across;
+    } else {
+      s[near ? 'top' : 'bottom'] = along;
+      s[prefs.edge] = across;
+    }
+  }
+
+  // 一覧と設定は、バーから画面の内側に向けて開く。入りきらない分は中をスクロールする
+  function placePanel(panel) {
+    if (!isOpen(panel) || bar.hidden) return;
+    var root = document.documentElement;
+    var vw = root.clientWidth;
+    var vh = root.clientHeight;
+    var r = bar.getBoundingClientRect();
+    var s = panel.style;
+    var w = panel.offsetWidth;
+    var left = (r.left + r.right) / 2 < vw / 2 ? r.left : r.right - w;
+    s.left = Math.round(Math.min(Math.max(EDGE_GAP, left), vw - w - EDGE_GAP)) + 'px';
+    s.right = 'auto';
+    if ((r.top + r.bottom) / 2 < vh / 2) {
+      s.top = Math.round(r.bottom + 8) + 'px';
+      s.bottom = 'auto';
+      s.maxHeight = 'min(60vh, ' + Math.max(120, Math.round(vh - r.bottom - 8 - EDGE_GAP)) + 'px)';
+    } else {
+      // 下から測る。避ける高さを、CSS の bottom と要素の高さから求めるため
+      s.bottom = Math.round(vh - r.top + 8) + 'px';
+      s.top = 'auto';
+      s.maxHeight = 'min(60vh, ' + Math.max(120, Math.round(r.top - 8 - EDGE_GAP)) + 'px)';
+    }
+  }
+
+  // 画面上の四角から、いちばん近い辺と、辺に沿った割合を求める。端から 24px 以内なら角に寄せる
+  var CORNER_SNAP = 24;
+  function edgeFromRect(r) {
+    var root = document.documentElement;
+    var vw = root.clientWidth;
+    var vh = root.clientHeight;
+    var gaps = { left: r.left, right: vw - r.right, top: r.top, bottom: vh - r.bottom };
+    var edge = EDGES.reduce(function (a, b) { return gaps[b] < gaps[a] ? b : a; });
+    var horizontal = edge === 'top' || edge === 'bottom';
+    var start = horizontal ? r.left : r.top;
+    var range = (horizontal ? vw - r.width : vh - r.height) - EDGE_GAP * 2;
+    var t = range > 0 ? (start - EDGE_GAP) / range : 0;
+    if (range <= 0 || start - EDGE_GAP < CORNER_SNAP) t = 0;
+    else if (range - (start - EDGE_GAP) < CORNER_SNAP) t = 1;
+    t = Math.min(1, Math.max(0, t));
+    // 左右の辺の端は、上か下の辺の角として持つ
+    if (!horizontal && (t === 0 || t === 1)) {
+      var x = edge === 'left' ? 0 : 1;
+      edge = t === 0 ? 'top' : 'bottom';
+      t = x;
+    }
+    return { edge: edge, t: t };
+  }
+
+  function setBarPosition(edge, t) {
+    prefs.edge = edge;
+    prefs.t = t;
+    savePrefs();
+    layoutBar();
+    syncSettings();
+  }
+
+  // つまみのドラッグ。動かしている間は指に付いていき、離したらいちばん近い辺に吸い付く
+  function onGripDown(e) {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    var grip = e.currentTarget;
+    var r = bar.getBoundingClientRect();
+    var dx = e.clientX - r.left;
+    var dy = e.clientY - r.top;
+    var root = document.documentElement;
+    try { grip.setPointerCapture(e.pointerId); } catch (err) { /* 捕捉できなくても動かせる */ }
+    bar.classList.add('is-moving');
+    var move = function (ev) {
+      var s = bar.style;
+      s.right = s.bottom = 'auto';
+      s.left = Math.round(Math.min(Math.max(0, ev.clientX - dx), root.clientWidth - bar.offsetWidth)) + 'px';
+      s.top = Math.round(Math.min(Math.max(0, ev.clientY - dy), root.clientHeight - bar.offsetHeight)) + 'px';
+      placePanel(listPanel);
+      placePanel(settingsPanel);
+    };
+    var end = function (ev) {
+      grip.removeEventListener('pointermove', move);
+      grip.removeEventListener('pointerup', end);
+      grip.removeEventListener('pointercancel', end);
+      bar.classList.remove('is-moving');
+      if (ev.type === 'pointercancel') { layoutBar(); return; }
+      var p = edgeFromRect(bar.getBoundingClientRect());
+      setBarPosition(p.edge, p.t);
+    };
+    grip.addEventListener('pointermove', move);
+    grip.addEventListener('pointerup', end);
+    grip.addEventListener('pointercancel', end);
+  }
+
+  // ---------- キーでメモを置く ----------
+  // 入力中の文字や、ブラウザとページのショートカットを横取りしない
+  function isShortcut(e) {
+    if (!prefs.key || e.ctrlKey || e.metaKey || e.altKey || e.repeat) return false;
+    if (!e.key || e.key.length !== 1 || e.key.toLowerCase() !== prefs.keyChar) return false;
+    var t = e.target;
+    return !(t && (/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || t.isContentEditable));
+  }
+
+  // メモを閉じているときは、表示してから置くモードにする
+  function onShortcut() {
+    if (!state.enabled) api.enable();
+    setPlacing(!state.placing);
+  }
+
+  // ---------- 設定のパネル ----------
+  var POSITIONS = [
+    ['左上', 'top', 0], ['上', 'top', 0.5], ['右上', 'top', 1],
+    ['左', 'left', 0.5], null, ['右', 'right', 0.5],
+    ['左下', 'bottom', 0], ['下', 'bottom', 0.5], ['右下', 'bottom', 1],
+  ];
+
+  function toggleSettings() {
+    if (isOpen(settingsPanel)) closeSettings(true);
+    else openSettings();
+  }
+
+  function openSettings() {
+    if (!settingsPanel) buildSettings();
+    if (isOpen(listPanel)) toggleList();
+    settingsPanel.hidden = false;
+    bar.settingsBtn.setAttribute('aria-expanded', 'true');
+    syncSettings();
+    if (offsetObserver) offsetObserver.observe(settingsPanel);
+    layoutBar();
+  }
+
+  // focusBack が true なら、フォーカスを設定ボタンに戻す。バーが隠れるときは戻さない
+  function closeSettings(focusBack) {
+    if (!isOpen(settingsPanel)) return;
+    var hadFocus = settingsPanel.contains(document.activeElement);
+    settingsPanel.hidden = true;
+    bar.settingsBtn.setAttribute('aria-expanded', 'false');
+    if (offsetObserver) offsetObserver.unobserve(settingsPanel);
+    updateBarVisibility();
+    layoutBar();
+    if ((focusBack || hadFocus) && !bar.hidden) bar.settingsBtn.focus({ preventScroll: true });
+  }
+
+  function buildSettings() {
+    var close = h('button', { type: 'button', class: 'pn-x', 'aria-label': '設定を閉じる', title: '閉じる', onclick: function () { closeSettings(true); } }, [iconEl('x')]);
+    var keyBox = h('input', { type: 'checkbox' });
+    var keyInput = h('input', { type: 'text', class: 'pn-key', maxlength: '1', 'aria-label': 'メモを置くキー', autocomplete: 'off', spellcheck: 'false' });
+    var keyError = h('p', { class: 'pn-field-error', role: 'alert' });
+    var hideBox = h('input', { type: 'checkbox' });
+    var pos = h('div', { class: 'pn-seg pn-pos', role: 'group', 'aria-label': 'バーの位置' });
+    POSITIONS.forEach(function (p) {
+      if (!p) { pos.appendChild(h('span', {})); return; }
+      pos.appendChild(h('button', {
+        type: 'button', 'aria-pressed': 'false', 'data-edge': p[1], 'data-t': String(p[2]),
+        onclick: function () { setBarPosition(p[1], p[2]); },
+      }, [document.createTextNode(p[0])]));
+    });
+    var reset = h('button', { type: 'button', class: 'pn-btn', text: '最初の位置に戻す', onclick: function () { setBarPosition(DEFAULT_PREFS.edge, DEFAULT_PREFS.t); } });
+
+    keyBox.addEventListener('change', function () {
+      prefs.key = keyBox.checked;
+      // キーをオフにすると、隠したバーを戻す手段がなくなる。隠すのもやめる
+      if (!prefs.key) prefs.hideBar = false;
+      savePrefs();
+      syncSettings();
+    });
+    keyInput.addEventListener('input', function () {
+      var v = keyInput.value.trim().toLowerCase();
+      if (KEY_CHAR.test(v)) {
+        prefs.keyChar = v;
+        savePrefs();
+        keyError.textContent = '';
+      } else {
+        keyError.textContent = v ? '英字か数字の1文字にしてください' : 'キーを1文字入れてください';
+      }
+    });
+    // 正しくない値のまま離れたら、保存してある値に戻す
+    keyInput.addEventListener('blur', function () {
+      keyInput.value = prefs.keyChar;
+      keyError.textContent = '';
+    });
+    hideBox.addEventListener('change', function () {
+      prefs.hideBar = hideBox.checked;
+      // 隠したバーはキーで出すので、キーもオンにする
+      if (prefs.hideBar) prefs.key = true;
+      savePrefs();
+      syncSettings();
+    });
+
+    settingsPanel = h('div', { class: 'pn-settings', 'data-asternote': '', role: 'region', 'aria-labelledby': 'pn-settings-title', id: 'pn-settings', hidden: '' }, [
+      h('h2', { class: 'pn-title', id: 'pn-settings-title', text: '設定' }),
+      close,
+      h('label', { class: 'pn-check' }, [keyBox, document.createTextNode('キーでメモを置く')]),
+      h('div', { class: 'pn-field' }, [h('span', { text: 'キー' }), keyInput]),
+      keyError,
+      h('label', { class: 'pn-check' }, [hideBox, document.createTextNode('バーを隠す')]),
+      h('p', { class: 'pn-sub', text: 'キーを押すと、バーが出ます' }),
+      h('div', { class: 'pn-label', text: 'バーの位置' }),
+      pos,
+      h('div', { class: 'pn-row' }, [reset]),
+      h('p', { class: 'pn-foot', text: 'Asternote v' + VERSION }),
+    ]);
+    settingsPanel.parts = { keyBox: keyBox, keyInput: keyInput, keyError: keyError, hideBox: hideBox, pos: pos };
+    document.body.appendChild(settingsPanel);
+  }
+
+  // 設定の値を、パネルの表示にそろえる
+  function syncSettings() {
+    if (!settingsPanel) return;
+    var p = settingsPanel.parts;
+    p.keyBox.checked = prefs.key;
+    if (document.activeElement !== p.keyInput) p.keyInput.value = prefs.keyChar;
+    p.hideBox.checked = prefs.hideBar;
+    Array.prototype.forEach.call(p.pos.querySelectorAll('button'), function (b) {
+      b.setAttribute('aria-pressed', String(b.dataset.edge === prefs.edge && Number(b.dataset.t) === prefs.t));
+    });
   }
 
   function renderList() {
@@ -1436,6 +1776,7 @@
     noticeKind = text ? (kind || '') : '';
     if (!bar) { pendingNotice = text; return; }
     bar.notice.textContent = text;
+    bar.notice.title = text;
     bar.notice.hidden = !text;
   }
 
@@ -1473,9 +1814,9 @@
       if (!bar) return whenReady('enable')();
       state.enabled = true;
       if (remember !== false) ls.set(KEY + 'enabled', '1');
-      bar.hidden = false;
       if (launcher) launcher.hidden = true;
-      updateOffset();
+      updateBarVisibility();
+      layoutBar();
       notify();
       return refresh();
     },
@@ -1488,9 +1829,10 @@
       closePopover(); // 非表示にするときは、書きかけでも閉じる
       if (listPanel) listPanel.hidden = true;
       bar.listBtn.setAttribute('aria-expanded', 'false');
+      closeSettings(false);
       bar.hidden = true;
       if (launcher) launcher.hidden = false;
-      updateOffset();
+      layoutBar();
       renderPins();
       notify();
     },
