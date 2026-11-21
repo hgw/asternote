@@ -447,7 +447,7 @@
       '.pn-notice{padding:4px 8px;border:1px solid #fcd34d;border-radius:calc(var(--pn-radius) - 2px);background:#fffbeb;color:#92400e}',
       '.pn-error{margin:8px 0 0;color:var(--pn-danger)}',
       '.pn-error:empty{display:none}',
-      '.pn-pop{position:absolute;z-index:2147483002;width:300px;max-width:calc(100vw - 16px);padding:14px}',
+      '.pn-pop{position:absolute;z-index:2147483002;width:300px;max-width:calc(100vw - 16px);overflow:auto;padding:14px}',
       '.pn-pop:focus{outline:none}',
       '.pn-pop textarea,.pn-pop input[type="text"],.pn-pop select{display:block;width:100%;min-height:32px;margin:6px 0;padding:6px 8px;border:1px solid var(--pn-input);border-radius:calc(var(--pn-radius) - 2px);background:var(--pn-bg);color:var(--pn-fg);font:inherit}',
       '.pn-pop textarea{min-height:88px;resize:vertical}',
@@ -1023,11 +1023,26 @@
     placePopover(pos.x, pos.y);
   }
 
+  // 吹き出しは、ピンの下に置く。画面の下端やバーにかかるときは、ピンの上に置く
+  // 上にも入らないときは、画面の上端にそろえる。画面の外に出ると、開いても見えないため
+  // 高さの上限は、画面の上端からバーの上端までにする
+  var PIN_HEIGHT = 24;
   function placePopover(x, y) {
+    var root = document.documentElement;
+    var minTop = window.scrollY + 8;
+    var maxBottom = window.scrollY + root.clientHeight - (parseFloat(root.style.getPropertyValue('--asternote-offset')) || 0) - 8;
+    // 空いている高さより高いときは、中をスクロールさせる
+    popover.style.maxHeight = Math.max(120, maxBottom - minTop) + 'px';
     var w = popover.offsetWidth || 300;
-    var left = Math.min(Math.max(8 + window.scrollX, x + 12), window.scrollX + document.documentElement.clientWidth - w - 8);
+    var h = popover.offsetHeight;
+    var left = Math.min(Math.max(8 + window.scrollX, x + 12), window.scrollX + root.clientWidth - w - 8);
+    var top = y + 8;
+    if (top + h > maxBottom) {
+      var above = y - PIN_HEIGHT - 8 - h;
+      top = above >= minTop ? above : Math.max(minTop, maxBottom - h);
+    }
     popover.style.left = left + 'px';
-    popover.style.top = y + 8 + 'px';
+    popover.style.top = top + 'px';
   }
 
   // 吹き出しを必ず閉じる。保存やキャンセルのボタンなど、閉じてよいと決まっているときに使う
@@ -1042,7 +1057,10 @@
       var active = document.activeElement;
       if (!active || active === document.body || popover.contains(active)) back = popover.returnTo;
     }
-    if (popover) popover.remove();
+    if (popover) {
+      if (popoverObserver) popoverObserver.unobserve(popover);
+      popover.remove();
+    }
     popover = null;
     state.openId = null;
     if (back) restoreFocus(back);
@@ -1070,8 +1088,14 @@
       [h('h2', { class: 'pn-title', id: titleId, text: title }), close].concat(children));
     popover.returnTo = returnTo || (document.activeElement !== document.body ? document.activeElement : null);
     document.body.appendChild(popover);
+    // 中身が増えて高さが変わったら、置き直す。エラーや確認の文言が出て、画面の下にはみ出すことがあるため
+    if (window.ResizeObserver) {
+      if (!popoverObserver) popoverObserver = new ResizeObserver(function () { movePopover(); });
+      popoverObserver.observe(popover);
+    }
   }
   var popoverSeq = 0;
+  var popoverObserver = null;
 
   // 吹き出しを閉じてよければ閉じる。書きかけの内容があるときは閉じずに false を返し、編集欄に案内を出す
   // 外側のクリック、Esc、ピンのドラッグ、別のピンやメモを開く操作はすべてこれを通す
