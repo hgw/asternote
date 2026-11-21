@@ -45,7 +45,6 @@
   .static .pn-bar, .static .pn-pop, .static .pn-list, .static .pn-settings, .static .pn-launch, .static .cell > .pn-pin, .static .pn-cursor { position: relative !important; left: auto !important; top: auto !important; bottom: auto !important; }
   .static .cell > .pn-pin, .static .pn-cursor { margin: 0 !important; }
   .static .pn-pop { width: 300px; }
-  .placing-hint .pn-hint { min-width: 17em; }
   .areabox { position: relative; width: 220px; height: 120px; }
   .areabox .pn-area { left: 10px; top: 24px; right: 20px; bottom: 10px; }
   .areabox .pn-pin { left: 10px; top: 24px; }
@@ -115,8 +114,8 @@
       <button type="button" aria-pressed="false"><span class="pn-stars">★★</span></button>
       <button type="button" aria-pressed="false"><span class="pn-stars">★★★</span></button>
     </div>
-    <h3>範囲のトグル</h3>
-    <div class="row"><div class="pn-seg pn-mode"><button type="button" aria-pressed="false">範囲</button></div><div class="pn-seg pn-mode"><button type="button" aria-pressed="true">範囲</button></div></div>
+    <h3>範囲で指定</h3>
+    <div class="row"><label class="pn-check pn-mode"><input type="checkbox">範囲で指定</label><label class="pn-check pn-mode"><input type="checkbox" checked>範囲で指定</label></div>
     <h3>チェック</h3>
     <div class="row">
       <label class="pn-check"><input type="checkbox">完了したメモも表示</label>
@@ -140,7 +139,7 @@
       <span class="pn-stars" role="img" aria-label="重要度 2">★★</span>
       <span class="pn-meta">ななしさん｜5分前</span>
       <span class="pn-notice">保存データが壊れていたため、退避しました</span>
-      <span class="pn-hint">クリックで点、ドラッグで範囲を指定</span>
+      <span class="pn-hint" style="position:static">保存できませんでした: 通信に失敗しました</span>
     </div>
   </div>
 </section>
@@ -179,7 +178,7 @@
       <div class="pn-island">
         <span class="pn-grip" aria-hidden="true" data-icon="grip-vertical"></span>
         <button type="button" class="pn-btn pn-btn--icon" aria-label="戻る" data-icon="arrow-left"></button>
-        <div class="pn-seg pn-mode"><button type="button" aria-pressed="false">範囲</button></div>
+        <label class="pn-check pn-mode"><input type="checkbox">範囲で指定</label>
       </div>
       <button type="button" class="pn-close" aria-label="メモを閉じる" data-icon="x"></button>
     </div>
@@ -188,7 +187,7 @@
       <div class="pn-island">
         <span class="pn-grip" aria-hidden="true" data-icon="grip-vertical"></span>
         <button type="button" class="pn-btn pn-btn--icon" aria-label="戻る" data-icon="arrow-left"></button>
-        <div class="pn-seg pn-mode"><button type="button" aria-pressed="true">範囲</button></div>
+        <label class="pn-check pn-mode"><input type="checkbox" checked>範囲で指定</label>
       </div>
       <button type="button" class="pn-close" aria-label="メモを閉じる" data-icon="x"></button>
     </div>

@@ -474,16 +474,19 @@
       // ボタンは文字で分かるので、枠のコントラストには頼らない
       '.pn-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:32px;padding:0 12px;border:1px solid transparent;border-radius:calc(var(--pn-radius) - 2px);background:var(--pn-subtle);color:var(--pn-fg);font:inherit;font-weight:500;line-height:1;cursor:pointer;white-space:nowrap}',
       '.pn-btn:hover,.pn-btn[aria-expanded="true"]{background:var(--pn-subtle-hover)}',
-      '.pn-btn.is-on,.pn-btn--primary{background:var(--pn-primary);color:var(--pn-primary-fg)}',
-      '.pn-btn.is-on:hover,.pn-btn--primary:hover{background:color-mix(in srgb,var(--pn-primary) 85%,#000)}',
+      '.pn-btn--primary{background:var(--pn-primary);color:var(--pn-primary-fg)}',
+      '.pn-btn--primary:hover{background:color-mix(in srgb,var(--pn-primary) 85%,#000)}',
       '.pn-btn--danger{background:var(--pn-bg);border-color:var(--pn-danger);color:var(--pn-danger)}',
       '.pn-btn--danger:hover{background:color-mix(in srgb,var(--pn-danger) 8%,#fff)}',
       '.pn-btn:disabled,.pn-btn[aria-disabled="true"]{opacity:.5;cursor:default}',
       // 読み上げにだけ使う欄。画面には出さない
       '.pn-sr{position:absolute;width:1px;height:1px;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}',
       '.pn-btn--icon{min-width:32px;padding:0 8px}',
-      '.pn-island>.pn-hint,.pn-island>.pn-notice{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
-      '.pn-hint{padding:0 6px;color:var(--pn-muted)}',
+      '.pn-island>.pn-notice{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
+      // エラーは、バーの外に小さな札で出す。バーの中に出すと、バーの幅が変わるため
+      // バーが上の辺にあるときは下に、それ以外は上に出す
+      '.pn-hint{position:absolute;left:0;bottom:calc(100% + 6px);max-width:calc(100vw - 24px);padding:4px 8px;border:1px solid var(--pn-border);border-radius:calc(var(--pn-radius) - 2px);background:var(--pn-bg);color:var(--pn-danger);box-shadow:0 4px 8px rgba(0,0,0,.1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
+      '.pn-bar[data-edge="top"] .pn-hint{bottom:auto;top:calc(100% + 6px)}',
       '.pn-hint:empty{display:none}',
       '.pn-check{display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:0 6px;cursor:pointer;white-space:nowrap}',
       '.pn-check input{width:16px;height:16px;margin:0;accent-color:var(--pn-primary)}',
@@ -570,13 +573,12 @@
     // 置くモードの案内は、画面には出さず、読み上げだけで伝える
     var srHint = h('span', { class: 'pn-sr', role: 'status' });
     var notice = h('span', { class: 'pn-notice', 'data-pn-notice': '', role: 'status', hidden: '' });
-    // 「範囲」のトグル。オンのときは、2つの角のクリックで範囲を指定する
+    // 「範囲で指定」のチェックボックス。入れると、2つの角のクリックで範囲を指定する
     // ドラッグを使えない人のための代わりの操作なので、なくさない。WCAG 2.2 の 2.5.7
-    var modeSeg = h('div', { class: 'pn-seg pn-mode', hidden: '' });
-    modeSeg.appendChild(h('button', {
-      type: 'button', 'aria-pressed': 'false', title: 'オンにすると、2つの角のクリックで範囲を指定する',
-      onclick: function () { setPlaceMode(state.placeMode === 'area' ? 'point' : 'area'); },
-    }, [document.createTextNode('範囲')]));
+    // トグルボタンより、入っているかどうかが分かりやすいので、チェックボックスにする
+    var modeBox = h('input', { type: 'checkbox' });
+    modeBox.addEventListener('change', function () { setPlaceMode(modeBox.checked ? 'area' : 'point'); });
+    var modeSeg = h('label', { class: 'pn-check pn-mode', title: '2つの角のクリックで範囲を指定する', hidden: '' }, [modeBox, document.createTextNode('範囲で指定')]);
     // 設定はアイコンだけのボタン。名前は aria-label で付ける
     var settingsBtn = h('button', {
       type: 'button', class: 'pn-btn pn-btn--icon', 'aria-label': '設定', title: '設定',
@@ -662,7 +664,7 @@
     opts = opts || {};
     if (on && !requestClosePopover()) return;
     var wasMoving = state.moveTarget;
-    // カーソルを消すとフォーカスが body に外れる。カーソルにフォーカスがあったら、あとでバーの「メモ」に戻す
+    // カーソルを消すとフォーカスが body に外れる。カーソルにフォーカスがあったら、あとでバーの「戻る」に戻す
     var hadCursorFocus = !!cursorEl && document.activeElement === cursorEl;
     state.placing = on;
     state.moveTarget = on && opts.move ? opts.move : null;
@@ -704,7 +706,7 @@
   function setPlaceMode(mode) {
     state.placeMode = mode;
     clearCorner();
-    bar.modeSeg.firstChild.setAttribute('aria-pressed', String(mode === 'area'));
+    bar.modeSeg.firstChild.checked = mode === 'area';
     updateHint();
   }
 
@@ -847,7 +849,7 @@
     }
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
-      // 「メモ」で押した Enter を押し続けると、カーソルが出た直後に置いてしまう。押し続けの分は無視する
+      // 「メモを追加」で押した Enter を押し続けると、カーソルが出た直後に置いてしまう。押し続けの分は無視する
       if (e.repeat) return;
       placeAt(cursor.x, cursor.y, hitElement(cursor.x, cursor.y));
     }
@@ -1197,13 +1199,14 @@
     }
     popover = null;
     state.openId = null;
-    if (wasNew) renderPins(); // 仮のピンを消す
+    // 仮のピンと枠だけを消す。全部を描き直すと、ドラッグ中のピンが消えてドラッグが途切れるため
+    if (wasNew && layer) Array.prototype.forEach.call(layer.querySelectorAll('.is-draft'), function (el) { el.remove(); });
     updateBarVisibility();
     if (back) restoreFocus(back);
   }
 
   // 戻り先は要素か、メモの id。ピンは描き直すと別の要素になるので、id から探し直す
-  // 完了にしてピンが隠れたときや、一覧が描き直されたときは、戻り先がなくなる。そのときはバーの「メモ」に戻す
+  // 完了にしてピンが隠れたときや、一覧が描き直されたときは、戻り先がなくなる。そのときはバーの「メモを追加」に戻す
   function restoreFocus(back) {
     var el = typeof back === 'string' ? pinFor(back) : back;
     if (!el || !el.isConnected) el = bar && !bar.hidden ? bar.addBtn : null;
@@ -1334,7 +1337,7 @@
         if (del.dataset.confirm !== '1') { setConfirm(true); return; }
         setBusy(true, '削除しています');
         error.textContent = '';
-        // 消したメモのピンには戻れないので、フォーカスはバーの「メモ」に戻す
+        // 消したメモのピンには戻れないので、フォーカスはバーの「メモを追加」に戻す
         self.returnTo = bar.addBtn;
         store.remove(note.id).then(refresh).then(closeSelf).catch(function (err) {
           // 失敗したら吹き出しは閉じない。書きかけの内容を残し、理由を吹き出しの中に出す
@@ -1494,7 +1497,7 @@
   var EDGE_GAP = 12;
   var isOpen = function (el) { return !!el && !el.hidden; };
 
-  // バーを出すかどうか。「バーを隠す」がオンのときは、操作の途中と、エラーを出している間だけ出す
+  // バーを出すかどうか。「バーを非表示」がオンのときは、操作の途中と、エラーを出している間だけ出す
   var barHeld = false;
   var errorUntil = 0;
   // 押し終わるまでバーを出しておく。click は pointerup のあとに届くので、そのあとで外す
@@ -1541,6 +1544,7 @@
     var along = Math.round(EDGE_GAP + (near ? prefs.t : 1 - prefs.t) * range) + 'px';
     var across = EDGE_GAP + 'px';
     s.left = s.right = s.top = s.bottom = 'auto';
+    el.dataset.edge = prefs.edge;
     if (horizontal) {
       s[near ? 'left' : 'right'] = along;
       s[prefs.edge] = across;
@@ -1648,7 +1652,7 @@
     grip.addEventListener('pointercancel', end);
   }
 
-  // ---------- キーでメモを置く ----------
+  // ---------- キーボード操作 ----------
   // メモを開いているときだけ効く。閉じているときは、ページの操作の邪魔をしない
   // 入力中の文字や、ブラウザとページのショートカットも横取りしない
   function isShortcut(e) {
@@ -1656,7 +1660,10 @@
     if (!e.key || e.key.length !== 1 || e.key.toLowerCase() !== prefs.keyChar) return false;
     // Shadow DOM の中の入力欄では、e.target が外側の要素になる。実際に押された要素で確かめる
     var t = (e.composedPath && e.composedPath()[0]) || e.target;
-    return !(t && (/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || t.isContentEditable));
+    if (t && (/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || t.isContentEditable)) return false;
+    // 吹き出しや設定のボタンを操作している間も反応しない。押すと、開いているものが閉じてしまうため
+    if (t && t.nodeType === 1 && ((popover && popover.contains(t)) || (settingsPanel && settingsPanel.contains(t)))) return false;
+    return true;
   }
 
   function onShortcut() {
@@ -1727,7 +1734,7 @@
     }, [h('span', { text: 'バーの位置' }), iconEl('chevron-down')]);
     // 版の番号は、GitHub のリポジトリへのリンクにする。新しいタブで開くことを、アイコンと読み上げで示す
     var repo = h('a', { href: 'https://github.com/hgw/asternote', target: '_blank', rel: 'noopener noreferrer' }, [
-      h('span', { text: 'Asternote v' + VERSION }),
+      h('span', { class: 'pn-ver', text: 'Asternote v' + VERSION }),
       iconEl('external-link'),
       h('span', { class: 'pn-sr', text: '（新しいタブで開く）' }),
     ]);
@@ -1805,7 +1812,7 @@
     var items = visibleNumbered();
     if (!items.length) {
       var hidden = state.notes.length - items.length;
-      var text = hidden ? '完了したメモが ' + hidden + ' 件あります。「完了も表示」で見られます。' : 'このページのメモはまだありません。';
+      var text = hidden ? '完了したメモが ' + hidden + ' 件あります。設定の「完了したメモも表示」で見られます。' : 'このページのメモはまだありません。';
       listPanel.appendChild(h('p', { class: 'pn-empty', text: text }));
       return;
     }
@@ -1869,7 +1876,7 @@
     return withTime ? date + ' ' + p(d.getHours()) + ':' + p(d.getMinutes()) : date;
   }
 
-  // 「バーを隠す」がオンでも、エラーは 8 秒バーを出して見せる。案内の欄は省略されることがあるので、全文を title にも入れる
+  // 「バーを非表示」がオンでも、エラーは 8 秒バーを出して見せる。札は省略されることがあるので、全文を title にも入れる
   var ERROR_MS = 8000;
   function showError(prefix, err) {
     var text = prefix + ': ' + (err && err.message ? err.message : err);
