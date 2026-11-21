@@ -51,7 +51,7 @@
 GitHub から npm で入れる。バージョンはタグで指定する。
 
 ```sh
-npm i github:hgw/asternote#v0.11.0
+npm i github:hgw/asternote#v0.11.1
 ```
 
 `asternote-copy` で、`asternote.js` と `api.php` を公開ディレクトリに複製する。
@@ -134,7 +134,7 @@ require __DIR__ . '/asternote/asternote.php';
 3. ページに script タグを足す
 
    ```html
-   <script src="https://cdn.jsdelivr.net/gh/hgw/asternote@v0.11.0/asternote.js"
+   <script src="https://cdn.jsdelivr.net/gh/hgw/asternote@v0.11.1/asternote.js"
            data-endpoint="/asternote/api.php"
            data-project="myproject" defer></script>
    ```

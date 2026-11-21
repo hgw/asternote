@@ -63,7 +63,7 @@
   'use strict';
 
   // 版の番号。package.json と同じ値にする。scripts/build-wordpress.sh が確かめる
-  var VERSION = '0.11.0';
+  var VERSION = '0.11.1';
 
   var script = document.currentScript;
   var config = {
@@ -642,6 +642,13 @@
       '.pn-body{margin:10px 0;white-space:pre-wrap;overflow-wrap:anywhere}',
       '.pn-row{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:10px}',
       '.pn-head{display:flex;flex-wrap:wrap;align-items:center;gap:4px}',
+      // 閲覧の吹き出しの1行目。番号、種類、状態を並べる。右上の × と重ならないよう、右に余白を取る
+      '.pn-headrow{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;min-height:32px;padding-right:32px;margin:-4px 0 10px}',
+      // 番号は控えめにする。本文に目が向くように
+      '.pn-headrow .pn-title{margin:0;padding:0;color:var(--pn-muted);font-size:13px;font-weight:400}',
+      '.pn-headrow .pn-kind{margin:0}',
+      // 本文は罫線で囲まず、文字の大きさと上下の余白で目が向くようにする
+      '.pn-body--view{margin:0 0 8px;padding:6px 0 2px;font-size:15px;line-height:1.7}',
       '.pn-line{display:block;margin-top:2px}',
       '.pn-tag{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:999px;color:#fff;font-size:12px;font-weight:500;margin-right:6px}',
       '.pn-tag .pn-icon svg{width:12px;height:12px;stroke-width:2.5}',
@@ -1347,12 +1354,15 @@
   }
 
   // 吹き出しを dialog として出す。開く前にフォーカスがあった場所を、閉じたときの戻り先にする
-  function showPopover(children, title, returnTo) {
+  // title は見出しの文字。要素の配列も渡せる。head を渡すと、見出しと同じ行に並べる
+  function showPopover(children, title, returnTo, head) {
     var titleId = 'pn-title-' + (++popoverSeq);
     // 閉じるボタンは、バーと同じく × のアイコンだけにして右上に置く。編集中は「キャンセル」と同じ動きになる
     var close = h('button', { type: 'button', class: 'pn-x', 'aria-label': t('close'), title: t('close'), onclick: closePopover }, [iconEl('x')]);
+    var heading = typeof title === 'string' ? h('h2', { class: 'pn-title', id: titleId, text: title }) : h('h2', { class: 'pn-title', id: titleId }, title);
+    var top = head ? h('div', { class: 'pn-headrow' }, [heading].concat(head)) : heading;
     popover = h('div', { class: 'pn-pop', 'data-asternote': '', role: 'dialog', 'aria-labelledby': titleId, tabindex: '-1' },
-      [h('h2', { class: 'pn-title', id: titleId, text: title }), close].concat(children));
+      [top, close].concat(children));
     popover.returnTo = returnTo || (document.activeElement !== document.body ? document.activeElement : null);
     document.body.appendChild(popover);
     updateBarVisibility();
@@ -1563,16 +1573,16 @@
     var kindLabel = h('span', { class: 'pn-kind' }, [iconEl(k.icon), document.createTextNode(k.label)]);
     var imp = importanceOf(note);
     var num = sorted().map(function (n) { return n.id; }).indexOf(note.id) + 1;
+    // 見出しは「#5」と短く見せ、種類と状態を同じ行に並べる。読み上げでは「メモ 5」と読ませる
+    // 本文は文字を大きくし、上下の罫線で区切って、目が向くようにする
+    var title = num > 0
+      ? [h('span', { 'aria-hidden': 'true', text: '#' + num }), h('span', { class: 'pn-sr', text: t('viewer.note', { n: num }) })]
+      : t('viewer.noteNoNum');
     showPopover([
-      h('div', { class: 'pn-head' }, [
-        kindLabel,
-        statusTag(s),
-        imp ? starsEl(imp) : null,
-      ]),
-      h('p', { class: 'pn-body', 'data-user-text': '', text: note.body }),
+      h('p', { class: 'pn-body pn-body--view', 'data-user-text': '', text: note.body }),
       metaEl('div', note),
       h('div', { class: 'pn-row' }, [toggleDone, edit, move]),
-    ], num > 0 ? t('viewer.note', { n: num }) : t('viewer.noteNoNum'), returnTo || note.id);
+    ], title, returnTo || note.id, [kindLabel, done ? statusTag(s) : null, imp ? starsEl(imp) : null]);
     var viewer = popover;
     popover.target = note;
     popover.targetEl = findAnchor(note);
@@ -1582,10 +1592,17 @@
   }
 
   // 完了かどうかのラベル。色に加えて、完了にはアイコンも付ける
+  // 未完了は、メモが残っていればそうなので、文字では出さない。一覧では番号だけを出す
+  // 読み上げでは状態が分かるように、見えない文字で「未完了」を足す
   function statusTag(s, prefix) {
     var tag = h('span', { class: 'pn-tag', 'data-status': s.key });
     if (s.icon) tag.appendChild(iconEl(s.icon));
-    tag.appendChild(document.createTextNode((prefix || '') + s.label));
+    if (s.key === 'open') {
+      tag.appendChild(document.createTextNode((prefix || '').trim()));
+      tag.appendChild(h('span', { class: 'pn-sr', text: t('sep') + s.label }));
+    } else {
+      tag.appendChild(document.createTextNode((prefix || '') + s.label));
+    }
     return tag;
   }
 
