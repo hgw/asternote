@@ -1,19 +1,19 @@
 #!/usr/bin/env node
-// pin-notes のメモを取得し、Markdown に書き出す。依存なし。Node 18 以降。
+// Asternote のメモを取得し、Markdown に書き出す。依存なし。Node 18 以降。
 //
 // 使い方:
-//   PIN_NOTES_AUTH="user:pass" pin-notes-export \
-//     --endpoint https://example.com/pin-notes/api.php \
+//   ASTERNOTE_AUTH="user:pass" asternote-export \
+//     --endpoint https://example.com/asternote/api.php \
 //     --project myproject \
 //     --out docs/notes.md
 //
-// PIN_NOTES_AUTH は Basic 認証が必要なときだけ指定する。
+// ASTERNOTE_AUTH は Basic 認証が必要なときだけ指定する。
 import { writeFile, mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
 // 引数は1つずつ読む。オプションの値に -h が来ても、使い方の表示と取り違えない
 // 知らないオプションは断る。書き間違いを黙って無視すると、思わぬ場所に書き出すため
-const usage = '使い方: pin-notes-export --endpoint <URL> --project <名前> [--out <ファイル>] [--site <URL>]';
+const usage = '使い方: asternote-export --endpoint <URL> --project <名前> [--out <ファイル>] [--site <URL>]';
 const KNOWN = ['endpoint', 'project', 'out', 'site'];
 const args = {};
 const argv = process.argv.slice(2);
@@ -25,7 +25,7 @@ for (let i = 0; i < argv.length; i++) {
   }
   const key = a.startsWith('--') ? a.slice(2) : null;
   if (!key || !KNOWN.includes(key) || argv[i + 1] === undefined) {
-    console.error(key && KNOWN.includes(key) ? `pin-notes-export: ${a} に値がありません` : `pin-notes-export: 知らない引数です: ${a}`);
+    console.error(key && KNOWN.includes(key) ? `asternote-export: ${a} に値がありません` : `asternote-export: 知らない引数です: ${a}`);
     console.error(usage);
     process.exit(1);
   }
@@ -38,28 +38,28 @@ if (!endpoint || !project) {
 }
 
 const headers = {};
-if (process.env.PIN_NOTES_AUTH) {
-  headers.Authorization = `Basic ${Buffer.from(process.env.PIN_NOTES_AUTH).toString('base64')}`;
+if (process.env.ASTERNOTE_AUTH) {
+  headers.Authorization = `Basic ${Buffer.from(process.env.ASTERNOTE_AUTH).toString('base64')}`;
 }
 
-// WordPress の admin-ajax.php?action=pin_notes のように、URL にすでに ? があれば & でつなぐ
+// WordPress の admin-ajax.php?action=asternote のように、URL にすでに ? があれば & でつなぐ
 const res = await fetch(`${endpoint}${endpoint.includes('?') ? '&' : '?'}project=${encodeURIComponent(project)}`, { headers });
 if (!res.ok) {
   console.error(`取得できませんでした: ${res.status} ${res.statusText}`);
   process.exit(1);
 }
 // 保存データが壊れていると、API は空の一覧を返す。そのまま書くと既存の notes.md の内容が消えるので止める
-if (res.headers.get('X-Pin-Notes-Warning')) {
-  console.error(`サーバーの保存データに問題があるため、書き出しを中止しました: ${res.headers.get('X-Pin-Notes-Warning')}`);
+if (res.headers.get('X-Asternote-Warning')) {
+  console.error(`サーバーの保存データに問題があるため、書き出しを中止しました: ${res.headers.get('X-Asternote-Warning')}`);
   process.exit(1);
 }
 const { notes } = await res.json();
 
-// 種類の表示名と重要度の上限。pin-notes.js と api.php にも同じ値がある。変えるときは3か所をそろえる
+// 種類の表示名と重要度の上限。asternote.js と api.php にも同じ値がある。変えるときは3か所をそろえる
 // 「メモ」は書き出しでは付けない
 const KINDS = { memo: 'メモ', idea: 'アイデア', fix: '修正', info: '質問・情報', like: 'いいね' };
 const MAX_IMPORTANCE = 3;
-// 丸め方は pin-notes.js と api.php と同じ。数として読めない値は 0、小数は切り捨て、範囲外は端に寄せる
+// 丸め方は asternote.js と api.php と同じ。数として読めない値は 0、小数は切り捨て、範囲外は端に寄せる
 const importanceOf = (v) => {
   if ((typeof v !== 'number' && typeof v !== 'string') || v === '') return 0;
   const n = Number(v);

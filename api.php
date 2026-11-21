@@ -1,6 +1,6 @@
 <?php
 /**
- * pin-notes の保存用 API。PHP 7.4 以降。
+ * Asternote の保存用 API。PHP 7.4 以降。
  *
  * GET  ?project=xxx[&page=/path/]   メモの一覧を返す。page を省くと全ページ分
  * POST {action:create, note:{...}}  メモを作る
@@ -9,9 +9,9 @@
  *
  * 書き込みの制限は、サーバー側の Basic 認証などに任せる。
  * Basic 認証を通っていないリクエストは断る。かけ忘れたまま動き続けないようにするため。
- * 直接開かれたときは、同じディレクトリの pin-notes.config.php の設定で動く。
- * ほかの PHP から使うときは、定数 PIN_NOTES_LIBRARY を定義してから読み込み、\PinNotes\handle($config) を呼ぶ。
- * WordPress のプラグインはこの方法で使う。関数と定数は名前空間 PinNotes に入れ、ほかのプラグインとぶつからないようにする。
+ * 直接開かれたときは、同じディレクトリの asternote.config.php の設定で動く。
+ * ほかの PHP から使うときは、定数 ASTERNOTE_LIBRARY を定義してから読み込み、\Asternote\handle($config) を呼ぶ。
+ * WordPress のプラグインはこの方法で使う。関数と定数は名前空間 Asternote に入れ、ほかのプラグインとぶつからないようにする。
  *   <?php return [
  *       'data_dir' => '/path/outside/docroot', // 必須。保存先。ドキュメントルートの外にする
  *       'projects' => ['myproject'],            // 必須。使える project 名の一覧
@@ -21,10 +21,10 @@
 
 declare(strict_types=1);
 
-namespace PinNotes;
+namespace Asternote;
 
 const STATUSES = ['open', 'decided', 'done'];
-// 種類のキーと重要度の上限は pin-notes.js と export.mjs にも同じ値がある。変えるときは3か所をそろえる
+// 種類のキーと重要度の上限は asternote.js と export.mjs にも同じ値がある。変えるときは3か所をそろえる
 const KINDS = ['memo', 'idea', 'fix', 'info', 'like'];
 const MAX_IMPORTANCE = 3;
 // 1つの project に保存できるメモの数。ディスクを埋められないようにする
@@ -40,7 +40,7 @@ function kind_value($value): string
 
 /**
  * 重要度。0〜3 の整数に丸める。0 は指定なし。
- * 丸め方は pin-notes.js と export.mjs と同じ。数として読めない値は 0、小数は切り捨て、範囲外は端に寄せる
+ * 丸め方は asternote.js と export.mjs と同じ。数として読めない値は 0、小数は切り捨て、範囲外は端に寄せる
  */
 function importance_value($value): int
 {
@@ -159,7 +159,7 @@ function num($value): float
 function position_fields(array $src): array
 {
     // 途中で切ったセレクターは別の要素を指しうる。長すぎるときは body 基準の座標に任せる
-    // 上限は pin-notes.js の MAX_SELECTOR と同じ値にする。セレクターは ASCII だけなので文字数の数え方は一致する
+    // 上限は asternote.js の MAX_SELECTOR と同じ値にする。セレクターは ASCII だけなので文字数の数え方は一致する
     $selector = $src['selector'] ?? null;
     $area = is_numeric($src['rx2'] ?? null) && is_numeric($src['ry2'] ?? null);
     return [
@@ -210,7 +210,7 @@ function with_notes(string $project, callable $fn, bool $write, bool $recover = 
         if (!is_array($notes)) {
             // 中身が壊れている。読むだけのときは空として返し、警告ヘッダーで知らせる
             if (!$write) {
-                header('X-Pin-Notes-Warning: corrupt-data');
+                header('X-Asternote-Warning: corrupt-data');
                 return $fn([])['return'];
             }
             // 更新や削除では、対象のメモが見つからないまま退避すると黙って全件が消える。理由を返して止める
@@ -235,7 +235,7 @@ function with_notes(string $project, callable $fn, bool $write, bool $recover = 
             respond(500, ['error' => '保存できませんでした']);
         }
         // 退避したことは、新しいファイルの保存に成功してから知らせる
-        if ($recovered) header('X-Pin-Notes-Warning: recovered-from-corrupt-data');
+        if ($recovered) header('X-Asternote-Warning: recovered-from-corrupt-data');
     }
     flock($lock, LOCK_UN);
     fclose($lock);
@@ -244,7 +244,7 @@ function with_notes(string $project, callable $fn, bool $write, bool $recover = 
 
 /**
  * リクエストを1件処理して応答を返す。最後に必ず exit する。
- * $config は pin-notes.config.php と同じ形の配列。
+ * $config は asternote.config.php と同じ形の配列。
  */
 function handle($config): void
 {
@@ -278,7 +278,7 @@ function handle($config): void
     }
 
     // 別サイトからの書き込みを防ぐ。独自ヘッダーはブラウザが勝手に付けられない
-    if (($_SERVER['HTTP_X_PIN_NOTES'] ?? '') !== '1') {
+    if (($_SERVER['HTTP_X_ASTERNOTE'] ?? '') !== '1') {
         respond(403, ['error' => 'ヘッダーがありません']);
     }
 
@@ -368,11 +368,11 @@ function handle($config): void
 
 // 直接開かれたときだけ、隣の設定ファイルで動く。ライブラリとして読み込まれたときは関数の定義だけにする
 // WordPress のプラグインの中に置かれたものは、直接開かれても 404 だけを返す。導入していることを知らせないため
-if (!\defined('PIN_NOTES_LIBRARY') && \is_file(__DIR__ . '/pin-notes.php')) {
+if (!\defined('ASTERNOTE_LIBRARY') && \is_file(__DIR__ . '/asternote.php')) {
     \http_response_code(404);
     exit;
 }
-if (!\defined('PIN_NOTES_LIBRARY')) {
-    $file = __DIR__ . '/pin-notes.config.php';
+if (!\defined('ASTERNOTE_LIBRARY')) {
+    $file = __DIR__ . '/asternote.config.php';
     handle(is_file($file) ? (require $file) : []);
 }
