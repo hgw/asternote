@@ -267,7 +267,7 @@ ASTERNOTE_AUTH="user:pass" node export.mjs \
 v0.8.0 で、名前を pin-notes から Asternote に変えた。
 旧名の属性、定数、コマンドは読まない。導入済みの案件は、次の手順で書き換える。
 
-- npm の指定を `github:hgw/asternote#v0.8.1` に変える
+- npm の指定を `github:hgw/asternote#<版>` に変える。版は v0.8.0 以降にする
 - `package.json` のコマンドを `asternote-copy` と `asternote-export` に変える
 - 複製先のディレクトリと `.gitignore` を、必要なら `asternote` に変える
 - 設定ファイルの名前を `asternote.config.php` に変える
@@ -280,7 +280,7 @@ v0.8.0 で、名前を pin-notes から Asternote に変えた。
 WordPress では、次の手順で入れ替える。
 
 1. 旧プラグインを停止して削除する
-2. `asternote-wordpress-0.8.0.zip` を入れて有効にする
+2. v0.8.0 以降の `asternote-wordpress-<版>.zip` を入れて有効にする
 3. `wp-config.php` の定数を `PIN_NOTES_*` から `ASTERNOTE_*` に変える。変え忘れると、プラグインは何もしない
 4. 書き出しの `--endpoint` を `admin-ajax.php?action=asternote` に変える
 
