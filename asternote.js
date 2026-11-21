@@ -14,8 +14,8 @@
  * メモは、クリックで点、ドラッグで四角の範囲として残せる。打ったピンはドラッグで動かせる。
  * ドラッグを使わずに、2つの角のクリックで範囲を指定したり、吹き出しの「移動」とクリックでピンを動かしたりもできる。
  * キーボードでは、置く位置を十字のカーソルで示す。矢印キーで動かし、Enter で決める。
- * 完了したメモは、バーの「完了も表示」にチェックを入れたときだけ表示する。
- * バーの設定ボタンで、キーでメモを置く、バーを隠す、バーの位置を選べる。設定は見る人のブラウザに保存する。
+ * 完了したメモは、設定の「完了したメモも表示」にチェックを入れたときだけ表示する。
+ * バーの設定ボタンで、キーボード操作、バーの非表示、バーの位置を選べる。設定は見る人のブラウザに保存する。
  * バーはつまみのドラッグで、画面の辺のどこにでも動かせる。
  * data-asternote-ignore 属性を付けた要素の中では、メモを置くクリックを横取りしない。
  * 表示中は html に --asternote-offset を設定する。値は画面下端からバーや一覧の上端までの高さで、余白は含まない。
@@ -26,7 +26,7 @@
  * MIT License. https://github.com/hgw/asternote
  *
  * アイコンは Lucide v1.76.0 の SVG を使っている。https://lucide.dev
- * plus、x、arrow-left、move、trash-2、check は Feather 由来で MIT License、ほかは ISC License。
+ * plus、x、arrow-left、move、trash-2、check、chevron-down、external-link は Feather 由来で MIT License、ほかは ISC License。
  *
  * ISC License
  * Copyright (c) 2026 Lucide Icons and Contributors
@@ -63,7 +63,7 @@
   'use strict';
 
   // 版の番号。package.json と同じ値にする。scripts/build-wordpress.sh が確かめる
-  var VERSION = '0.9.0';
+  var VERSION = '0.10.0';
 
   var script = document.currentScript;
   var config = {
@@ -107,6 +107,8 @@
     'circle-help': '<circle cx="12" cy="12" r="10"/><path d="M9 9.5a3 2.5 0 016 0c0 2-2 2-3 3.5"/><path d="M12 17h.01"/>',
     'settings': '<path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/>',
     'grip-vertical': '<circle cx="9" cy="12" r="1"/><circle cx="9" cy="5" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="19" r="1"/>',
+    'chevron-down': '<path d="m6 9 6 6 6-6"/>',
+    'external-link': '<path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>',
     'heart': '<path d="M2 9.5a5.5 5.5 0 0 1 9.591-3.676.56.56 0 0 0 .818 0A5.49 5.49 0 0 1 22 9.5c0 2.29-1.5 4-3 5.5l-5.492 5.313a2 2 0 0 1-3 .019L5 15c-1.5-1.5-3-3.2-3-5.5"/>',
   };
   // Asternote のロゴ。星と3本の線。塗りの図形で、Lucide とは描き方が違うので、svg ごと持つ
@@ -165,7 +167,7 @@
   // 四隅は上か下の辺として持つ。左右の辺の t は 0 と 1 にならない
   var EDGES = ['top', 'right', 'bottom', 'left'];
   var KEY_CHAR = /^[a-z0-9]$/;
-  var DEFAULT_PREFS = { key: false, keyChar: 'c', hideBar: false, edge: 'bottom', t: 0 };
+  var DEFAULT_PREFS = { key: true, keyChar: 'c', hideBar: false, edge: 'bottom', t: 0 };
   var prefs = loadPrefs();
   function loadPrefs() {
     var saved = {};
@@ -482,10 +484,6 @@
       '.pn-btn--icon{min-width:32px;padding:0 8px}',
       '.pn-island>.pn-hint,.pn-island>.pn-notice{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
       '.pn-hint{padding:0 6px;color:var(--pn-muted)}',
-      // 置くモードの間は、案内の欄の幅を確保する。段階や置き方で文が変わっても、バーの幅が変わらないように
-      // 画面が狭いときは縮める
-      // 幅も指定する。指定しないと、バーの幅が案内の文の長さで決まってしまう
-      'html.pn-placing .pn-island>.pn-hint{flex:0 1 17em;width:17em}',
       '.pn-hint:empty{display:none}',
       '.pn-check{display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:0 6px;cursor:pointer;white-space:nowrap}',
       '.pn-check input{width:16px;height:16px;margin:0;accent-color:var(--pn-primary)}',
@@ -530,8 +528,8 @@
       '.pn-grip{display:inline-flex;align-items:center;justify-content:center;width:20px;min-height:32px;margin-right:-2px;border-radius:calc(var(--pn-radius) - 2px);color:var(--pn-muted);cursor:grab;touch-action:none}',
       '.pn-grip:hover{background:var(--pn-subtle)}',
       '.pn-bar.is-moving,.pn-bar.is-moving *{cursor:grabbing!important;user-select:none}',
-      '.pn-settings{position:fixed;left:12px;bottom:64px;z-index:2147483001;width:300px;max-width:calc(100vw - 24px);max-height:60vh;overflow:auto;padding:14px}',
-      '.pn-settings .pn-check{padding:0}',
+      '.pn-settings{position:fixed;left:12px;bottom:64px;z-index:2147483001;width:300px;max-width:calc(100vw - 24px);overflow:auto;padding:14px}',
+      '.pn-settings .pn-check{display:flex;padding:0}',
       '.pn-field{display:flex;align-items:center;gap:8px;margin:4px 0 0 22px}',
       '.pn-settings input.pn-key{display:inline-block;width:3em;margin:0;text-align:center;text-transform:uppercase}',
       // エラーの欄は、空でも高さを取っておく。文言が出ても、パネルの高さが変わらないように
@@ -540,6 +538,17 @@
       '.pn-pos{display:grid;grid-template-columns:repeat(3,max-content);gap:4px}',
       '.pn-pos button{justify-content:center;min-width:44px}',
       '.pn-foot{margin:12px 0 0;padding-top:8px;border-top:1px solid var(--pn-border);color:var(--pn-muted);font-size:12px}',
+      '.pn-foot a{display:inline-flex;align-items:center;gap:4px;color:inherit;text-underline-offset:2px}',
+      '.pn-foot a:hover{color:var(--pn-fg)}',
+      '.pn-foot .pn-icon svg{width:12px;height:12px}',
+      // 開閉する見出し。開いているときは矢印を上に向ける
+      '.pn-disclosure{display:flex;align-items:center;justify-content:space-between;width:100%;margin-top:10px;padding:4px 0;border:0;background:none;color:var(--pn-muted);font:inherit;font-size:12px;font-weight:500;cursor:pointer}',
+      '.pn-disclosure:hover{color:var(--pn-fg)}',
+      '.pn-disclosure .pn-icon svg{width:14px;height:14px;transition:transform .15s}',
+      '.pn-disclosure[aria-expanded="true"] .pn-icon svg{transform:rotate(180deg)}',
+      // 書いている間の仮のピン。押せないようにし、点線の縁で仮であることを示す
+      '.pn-pin.is-draft{pointer-events:none;border-style:dashed}',
+      '.pn-area.is-draft{border-style:dashed}',
     ].join('\n');
     document.head.appendChild(h('style', { 'data-asternote-style': '' }, [document.createTextNode(css)]));
   }
@@ -550,32 +559,24 @@
     document.body.appendChild(layer);
 
     // キーボードで押したとき（click の detail が 0）は、置く位置を十字のカーソルで選べるようにする
-    var addBtn = h('button', { type: 'button', class: 'pn-btn pn-btn--primary', onclick: function (e) { setPlacing(!state.placing, { keyboard: e.detail === 0 }); } }, label('plus', 'メモ'));
+    var addBtn = h('button', { type: 'button', class: 'pn-btn pn-btn--primary', onclick: function (e) { setPlacing(!state.placing, { keyboard: e.detail === 0 }); } }, label('plus', 'メモを追加'));
     var listBtn = h('button', { type: 'button', class: 'pn-btn pn-btn--collapse', title: '一覧', 'aria-expanded': 'false', onclick: toggleList }, label('list', '一覧'));
-    // 完了したメモは、チェックを入れたときだけ表示する。選んだ状態はブラウザに保存する
+    // 完了したメモは、設定でチェックを入れたときだけ表示する。選んだ状態はブラウザに保存する
     state.showDone = ls.get(KEY + 'showDone') === '1';
-    var showDoneBox = h('input', { type: 'checkbox' });
-    showDoneBox.checked = state.showDone;
-    showDoneBox.addEventListener('change', function () {
-      state.showDone = showDoneBox.checked;
-      ls.set(KEY + 'showDone', state.showDone ? '1' : '0');
-      if (popover && popover.target && popover.target.status === 'done' && !state.showDone) requestClosePopover();
-      renderPins();
-    });
-    var showDoneLabel = h('label', { class: 'pn-check' }, [showDoneBox, document.createTextNode('完了も表示')]);
     // 閉じるボタンは、操作の並びと分けて島の外に置く。アイコンだけなので、名前は aria-label で付ける
     var closeBtn = h('button', { type: 'button', class: 'pn-close', 'aria-label': 'メモを閉じる', title: 'メモを閉じる', onclick: function () { api.disable(); } }, [iconEl('x')]);
-    // 案内とエラーは、変わったときに読み上げられるようにする
+    // エラーは、変わったときに読み上げられるようにする
     var hint = h('span', { class: 'pn-hint', 'data-pn-hint': '', role: 'status' });
+    // 置くモードの案内は、画面には出さず、読み上げだけで伝える
+    var srHint = h('span', { class: 'pn-sr', role: 'status' });
     var notice = h('span', { class: 'pn-notice', 'data-pn-notice': '', role: 'status', hidden: '' });
-    // 置き方の切り替え。範囲は、ドラッグのほかに2つの角のクリックでも指定できる。ドラッグの代替のため
-    var modeSeg = h('div', { class: 'pn-seg pn-mode', role: 'group', 'aria-label': '置き方', hidden: '' });
-    [['point', '点'], ['area', '範囲']].forEach(function (m) {
-      modeSeg.appendChild(h('button', {
-        type: 'button', 'data-mode': m[0], 'aria-pressed': 'false',
-        onclick: function () { setPlaceMode(m[0]); },
-      }, [document.createTextNode(m[1])]));
-    });
+    // 「範囲」のトグル。オンのときは、2つの角のクリックで範囲を指定する
+    // ドラッグを使えない人のための代わりの操作なので、なくさない。WCAG 2.2 の 2.5.7
+    var modeSeg = h('div', { class: 'pn-seg pn-mode', hidden: '' });
+    modeSeg.appendChild(h('button', {
+      type: 'button', 'aria-pressed': 'false', title: 'オンにすると、2つの角のクリックで範囲を指定する',
+      onclick: function () { setPlaceMode(state.placeMode === 'area' ? 'point' : 'area'); },
+    }, [document.createTextNode('範囲')]));
     // 設定はアイコンだけのボタン。名前は aria-label で付ける
     var settingsBtn = h('button', {
       type: 'button', class: 'pn-btn pn-btn--icon', 'aria-label': '設定', title: '設定',
@@ -583,14 +584,14 @@
     }, [iconEl('settings')]);
     // つまみはマウスとタッチ用。キーボードと読み上げでは、設定の中の位置の選択を使う
     var grip = h('span', { class: 'pn-grip', 'aria-hidden': 'true', title: 'ドラッグでバーを動かす', onpointerdown: onGripDown }, [iconEl('grip-vertical')]);
-    var island = h('div', { class: 'pn-island' }, [grip, addBtn, modeSeg, listBtn, showDoneLabel, settingsBtn, hint, notice]);
+    var island = h('div', { class: 'pn-island' }, [grip, addBtn, modeSeg, listBtn, settingsBtn, hint, notice, srHint]);
     bar = h('div', { class: 'pn-bar', 'data-asternote': '', role: 'region', 'aria-label': 'メモ', hidden: '' }, [island, closeBtn]);
     bar.addBtn = addBtn;
     bar.listBtn = listBtn;
-    bar.showDone = showDoneLabel;
     bar.settingsBtn = settingsBtn;
     bar.modeSeg = modeSeg;
     bar.hint = hint;
+    bar.srHint = srHint;
     bar.notice = notice;
     if (pendingNotice) setNotice(pendingNotice);
     document.body.appendChild(bar);
@@ -669,12 +670,22 @@
     clearCorner();
     hideCursor();
     document.documentElement.classList.toggle('pn-placing', on);
-    bar.addBtn.classList.toggle('is-on', on);
-    bar.addBtn.textContent = '';
-    label(on ? 'arrow-left' : 'plus', on ? '戻る' : 'メモ').forEach(function (el) { bar.addBtn.appendChild(el); });
+    // 置いている間の「戻る」は、目立たないアイコンだけのボタンにする。名前は aria-label で付ける
+    var add = bar.addBtn;
+    add.classList.toggle('pn-btn--primary', !on);
+    add.classList.toggle('pn-btn--icon', on);
+    add.textContent = '';
+    if (on) {
+      add.setAttribute('aria-label', '戻る');
+      add.title = '戻る（Esc）';
+      add.appendChild(iconEl('arrow-left'));
+    } else {
+      add.removeAttribute('aria-label');
+      add.removeAttribute('title');
+      label('plus', 'メモを追加').forEach(function (el) { add.appendChild(el); });
+    }
     // 置いている間は、置く操作に関係のない部品を隠す。一覧も閉じる
     bar.listBtn.hidden = on;
-    bar.showDone.hidden = on;
     bar.settingsBtn.hidden = on;
     bar.modeSeg.hidden = !on || !!state.moveTarget;
     if (on && listPanel && !listPanel.hidden) toggleList();
@@ -693,20 +704,21 @@
   function setPlaceMode(mode) {
     state.placeMode = mode;
     clearCorner();
-    Array.prototype.forEach.call(bar.modeSeg.children, function (b) { b.setAttribute('aria-pressed', String(b.dataset.mode === mode)); });
+    bar.modeSeg.firstChild.setAttribute('aria-pressed', String(mode === 'area'));
     updateHint();
   }
 
   // 案内の文。今の置き方と段階に合わせる。キーボードで操作しているときは、キーの案内も足す
+  // 画面には出さず、読み上げだけで伝える。画面の案内の欄は、前のエラーが残らないように空にする
   function updateHint() {
+    bar.hint.textContent = '';
     bar.hint.title = '';
-    if (!state.placing) { bar.hint.textContent = ''; return; }
+    if (!state.placing) { bar.srHint.textContent = ''; return; }
     var text = state.moveTarget ? '移動先をクリック'
       : state.placeMode === 'area' ? (state.corner ? '2つ目の角をクリック' : '1つ目の角をクリック')
       : 'クリックで点、ドラッグで範囲を指定';
     if (cursorEl) text += '。矢印キーで動かし、Enter で決定';
-    bar.hint.textContent = text;
-    bar.hint.title = text;
+    bar.srHint.textContent = text;
   }
 
   // 位置を決める。クリック、ドラッグの終わり、キーボードの Enter のすべてがここを通る
@@ -989,9 +1001,27 @@
       movePin(pin, pos);
       layer.appendChild(pin);
     });
+    renderDraft();
     if (focused) { var again = pinFor(focused); if (again) again.focus({ preventScroll: true }); }
     if (listPanel && !listPanel.hidden) renderList();
     movePopover();
+  }
+
+  // 新しいメモを書いている間は、置いた位置に仮のピンと範囲の枠を出す。吹き出しを閉じると消える
+  // 読み上げでは吹き出しが位置を伝えるので、仮のピンは読ませない
+  function renderDraft() {
+    if (!popover || !popover.isNew || !popover.target) return;
+    var draft = Object.assign({}, popover.target, { body: '' });
+    var el = findAnchor(draft);
+    var pin = h('span', { class: 'pn-pin is-draft', 'data-status': 'open', 'aria-hidden': 'true', text: String(state.notes.length + 1) });
+    pin.note = draft;
+    pin.anchorEl = el;
+    if (isArea(draft)) {
+      pin.areaEl = h('div', { class: 'pn-area is-draft', 'data-asternote': '', 'data-status': 'open' });
+      layer.appendChild(pin.areaEl);
+    }
+    movePin(pin, positionOf(draft, el));
+    layer.appendChild(pin);
   }
 
   function movePin(pin, pos) {
@@ -1108,14 +1138,18 @@
     if (!popover || !popover.target) return;
     if (popover.targetEl && !popover.targetEl.isConnected) popover.targetEl = findAnchor(popover.target);
     var pos = positionOf(popover.target, popover.targetEl);
-    placePopover(pos.x, pos.y);
+    // 範囲のメモは、枠に重ならないように、範囲の下端を基準にする。上に出すときは、左上のピンの上に出す
+    placePopover(pos.x, pos.y2 != null ? pos.y2 : pos.y, pos.y, pos.x2);
   }
 
   // 吹き出しは、ピンの下に置く。画面の下端やバーにかかるときは、ピンの上に置く
   // 上にも入らないときは、画面の上端にそろえる。画面の外に出ると、開いても見えないため
   // 高さの上限は、画面の上端からバーの上端までにする
   var PIN_HEIGHT = 24;
-  function placePopover(x, y) {
+  // y は下に出すときの基準、upperY は上に出すときの基準。点のメモでは同じ値になる
+  // x2 は範囲の右端。点のメモでは null
+  // 上にも下にも入らないときは、ピンや範囲の横に出す。横にも入らないときは、画面の中に収める
+  function placePopover(x, y, upperY, x2) {
     var root = document.documentElement;
     var minTop = window.scrollY + 8;
     // バーが上の辺にあるときは、その下から置く。下の辺のバーは、--asternote-offset で避ける
@@ -1128,8 +1162,17 @@
     var left = Math.min(Math.max(8 + window.scrollX, x + 12), window.scrollX + root.clientWidth - w - 8);
     var top = y + 8;
     if (top + h > maxBottom) {
-      var above = y - PIN_HEIGHT - 8 - h;
-      top = above >= minTop ? above : Math.max(minTop, maxBottom - h);
+      var above = upperY - PIN_HEIGHT - 8 - h;
+      if (above >= minTop) {
+        top = above;
+      } else {
+        top = Math.min(Math.max(minTop, upperY - PIN_HEIGHT), Math.max(minTop, maxBottom - h));
+        var right = (x2 != null ? x2 : x + PIN_HEIGHT) + 12;
+        var minLeft = window.scrollX + 8;
+        var maxRight = window.scrollX + root.clientWidth - 8;
+        if (right + w <= maxRight) left = right;
+        else if (x - 12 - w >= minLeft) left = x - 12 - w;
+      }
     }
     popover.style.left = left + 'px';
     popover.style.top = top + 'px';
@@ -1142,6 +1185,7 @@
   var KEEP_FOCUS = 'keep-focus';
   function closePopover(mode) {
     var back = null;
+    var wasNew = !!(popover && popover.isNew);
     if (popover && mode !== KEEP_FOCUS) {
       // 保存中にボタンを無効にすると、フォーカスは body に外れる。そのときも戻す
       var active = document.activeElement;
@@ -1153,6 +1197,7 @@
     }
     popover = null;
     state.openId = null;
+    if (wasNew) renderPins(); // 仮のピンを消す
     updateBarVisibility();
     if (back) restoreFocus(back);
   }
@@ -1346,7 +1391,9 @@
     // 捕捉段階で受け取り、ボタンの Enter による選択より先に処理する
     popover.addEventListener('keydown', saveByKey, true);
     popover.target = note || anchor;
+    popover.isNew = !note;
     popover.targetEl = findAnchor(popover.target);
+    if (popover.isNew) renderPins();
     movePopover();
     body.focus();
   }
@@ -1512,18 +1559,20 @@
     var r = bar.getBoundingClientRect();
     var s = panel.style;
     var w = panel.offsetWidth;
+    // 一覧は長くなるので画面の 60% までにする。設定は短いので、空いている高さいっぱいまで使う
+    var cap = function (px) { return panel === listPanel ? 'min(60vh, ' + px + 'px)' : px + 'px'; };
     var left = (r.left + r.right) / 2 < vw / 2 ? r.left : r.right - w;
     s.left = Math.round(Math.min(Math.max(EDGE_GAP, left), vw - w - EDGE_GAP)) + 'px';
     s.right = 'auto';
     if ((r.top + r.bottom) / 2 < vh / 2) {
       s.top = Math.round(r.bottom + 8) + 'px';
       s.bottom = 'auto';
-      s.maxHeight = 'min(60vh, ' + Math.max(120, Math.round(vh - r.bottom - 8 - EDGE_GAP)) + 'px)';
+      s.maxHeight = cap(Math.max(120, Math.round(vh - r.bottom - 8 - EDGE_GAP)));
     } else {
       // 下から測る。避ける高さを、CSS の bottom と要素の高さから求めるため
       s.bottom = Math.round(vh - r.top + 8) + 'px';
       s.top = 'auto';
-      s.maxHeight = 'min(60vh, ' + Math.max(120, Math.round(r.top - 8 - EDGE_GAP)) + 'px)';
+      s.maxHeight = cap(Math.max(120, Math.round(r.top - 8 - EDGE_GAP)));
     }
   }
 
@@ -1600,18 +1649,17 @@
   }
 
   // ---------- キーでメモを置く ----------
-  // 入力中の文字や、ブラウザとページのショートカットを横取りしない
+  // メモを開いているときだけ効く。閉じているときは、ページの操作の邪魔をしない
+  // 入力中の文字や、ブラウザとページのショートカットも横取りしない
   function isShortcut(e) {
-    if (!prefs.key || e.ctrlKey || e.metaKey || e.altKey || e.repeat) return false;
+    if (!state.enabled || !prefs.key || e.ctrlKey || e.metaKey || e.altKey || e.repeat) return false;
     if (!e.key || e.key.length !== 1 || e.key.toLowerCase() !== prefs.keyChar) return false;
     // Shadow DOM の中の入力欄では、e.target が外側の要素になる。実際に押された要素で確かめる
     var t = (e.composedPath && e.composedPath()[0]) || e.target;
     return !(t && (/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || t.isContentEditable));
   }
 
-  // メモを閉じているときは、表示してから置くモードにする
   function onShortcut() {
-    if (!state.enabled) api.enable();
     setPlacing(!state.placing);
   }
 
@@ -1655,7 +1703,8 @@
   function buildSettings() {
     var close = h('button', { type: 'button', class: 'pn-x', 'aria-label': '設定を閉じる', title: '閉じる', onclick: function () { closeSettings(true); } }, [iconEl('x')]);
     var keyBox = h('input', { type: 'checkbox' });
-    var keyInput = h('input', { type: 'text', class: 'pn-key', maxlength: '1', 'aria-label': 'メモを置くキー', autocomplete: 'off', spellcheck: 'false' });
+    var doneBox = h('input', { type: 'checkbox' });
+    var keyInput = h('input', { type: 'text', class: 'pn-key', maxlength: '1', 'aria-label': 'メモを追加するキー', autocomplete: 'off', spellcheck: 'false' });
     var keyError = h('p', { class: 'pn-field-error', role: 'alert' });
     var hideBox = h('input', { type: 'checkbox' });
     var pos = h('div', { class: 'pn-seg pn-pos', role: 'group', 'aria-label': 'バーの位置' });
@@ -1667,6 +1716,21 @@
       }, [document.createTextNode(p[0])]));
     });
     var reset = h('button', { type: 'button', class: 'pn-btn', text: '最初の位置に戻す', onclick: function () { setBarPosition(DEFAULT_PREFS.edge, DEFAULT_PREFS.t); } });
+    // バーの位置は、めったに変えないので畳んでおく
+    var posBody = h('div', { id: 'pn-settings-pos', hidden: '' }, [pos, h('div', { class: 'pn-row' }, [reset])]);
+    var posToggle = h('button', {
+      type: 'button', class: 'pn-disclosure', 'aria-expanded': 'false', 'aria-controls': 'pn-settings-pos',
+      onclick: function () {
+        posBody.hidden = !posBody.hidden;
+        posToggle.setAttribute('aria-expanded', String(!posBody.hidden));
+      },
+    }, [h('span', { text: 'バーの位置' }), iconEl('chevron-down')]);
+    // 版の番号は、GitHub のリポジトリへのリンクにする。新しいタブで開くことを、アイコンと読み上げで示す
+    var repo = h('a', { href: 'https://github.com/hgw/asternote', target: '_blank', rel: 'noopener noreferrer' }, [
+      h('span', { text: 'Asternote v' + VERSION }),
+      iconEl('external-link'),
+      h('span', { class: 'pn-sr', text: '（新しいタブで開く）' }),
+    ]);
 
     keyBox.addEventListener('change', function () {
       prefs.key = keyBox.checked;
@@ -1690,6 +1754,12 @@
       keyInput.value = prefs.keyChar;
       keyError.textContent = '';
     });
+    doneBox.addEventListener('change', function () {
+      state.showDone = doneBox.checked;
+      ls.set(KEY + 'showDone', state.showDone ? '1' : '0');
+      if (popover && popover.target && popover.target.status === 'done' && !state.showDone) requestClosePopover();
+      renderPins();
+    });
     hideBox.addEventListener('change', function () {
       prefs.hideBar = hideBox.checked;
       // 隠したバーはキーで出すので、キーもオンにする
@@ -1701,17 +1771,17 @@
     settingsPanel = h('div', { class: 'pn-settings', 'data-asternote': '', role: 'region', 'aria-labelledby': 'pn-settings-title', id: 'pn-settings', hidden: '' }, [
       h('h2', { class: 'pn-title', id: 'pn-settings-title', text: '設定' }),
       close,
-      h('label', { class: 'pn-check' }, [keyBox, document.createTextNode('キーでメモを置く')]),
-      h('div', { class: 'pn-field' }, [h('span', { text: 'キー' }), keyInput]),
+      h('label', { class: 'pn-check' }, [doneBox, document.createTextNode('完了したメモも表示')]),
+      h('label', { class: 'pn-check' }, [keyBox, document.createTextNode('キーボード操作')]),
+      h('div', { class: 'pn-field' }, [h('span', { text: 'メモを追加するキー' }), keyInput]),
       keyError,
-      h('label', { class: 'pn-check' }, [hideBox, document.createTextNode('バーを隠す')]),
+      h('label', { class: 'pn-check' }, [hideBox, document.createTextNode('バーを非表示')]),
       h('p', { class: 'pn-sub', text: 'キーを押すと、バーが出ます' }),
-      h('div', { class: 'pn-label', text: 'バーの位置' }),
-      pos,
-      h('div', { class: 'pn-row' }, [reset]),
-      h('p', { class: 'pn-foot', text: 'Asternote v' + VERSION }),
+      posToggle,
+      posBody,
+      h('p', { class: 'pn-foot' }, [repo]),
     ]);
-    settingsPanel.parts = { keyBox: keyBox, keyInput: keyInput, keyError: keyError, hideBox: hideBox, pos: pos };
+    settingsPanel.parts = { keyBox: keyBox, doneBox: doneBox, keyInput: keyInput, keyError: keyError, hideBox: hideBox, pos: pos };
     document.body.appendChild(settingsPanel);
   }
 
@@ -1720,6 +1790,9 @@
     if (!settingsPanel) return;
     var p = settingsPanel.parts;
     p.keyBox.checked = prefs.key;
+    p.doneBox.checked = state.showDone;
+    // キーボード操作がオフのときは、キーの欄を使えないようにする
+    p.keyInput.disabled = !prefs.key;
     if (document.activeElement !== p.keyInput) p.keyInput.value = prefs.keyChar;
     p.hideBox.checked = prefs.hideBar;
     Array.prototype.forEach.call(p.pos.querySelectorAll('button'), function (b) {
