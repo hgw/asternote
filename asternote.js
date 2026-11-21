@@ -388,7 +388,7 @@
     var vars = [
       ['fg', '#09090b'], ['muted', '#52525b'], ['bg', '#fff'], ['subtle', '#f4f4f5'], ['subtle-hover', '#e4e4e7'],
       ['border', '#e4e4e7'], ['input', '#71717a'], ['primary', '#3f3f46'], ['primary-fg', '#fff'], ['ring', '#3f3f46'],
-      ['danger', '#b91c1c'], ['open', '#45685c'], ['done', '#52525b'], ['star', '#2b8265'], ['radius', '8px'],
+      ['danger', '#b91c1c'], ['open', '#2b8265'], ['done', '#52525b'], ['star', '#2b8265'], ['radius', '8px'],
     ].map(function (v) { return '--pn-' + v[0] + ':var(--asternote-' + v[0] + ',' + v[1] + ')'; }).join(';');
     var css = [
       '[data-asternote]{' + vars + ';font:13px/1.5 system-ui,sans-serif;letter-spacing:0;text-transform:none;color:var(--pn-fg);box-sizing:border-box}',
