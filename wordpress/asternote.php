@@ -3,7 +3,7 @@
  * Plugin Name: Asternote
  * Plugin URI: https://github.com/hgw/asternote
  * Description: プレビュー画面にピンと範囲でメモを残す。wp-config.php に ASTERNOTE_DATA_DIR を書いたときだけ動く。
- * Version: 0.11.2
+ * Version: 0.11.3
  * Requires PHP: 7.4
  * License: MIT
  *
@@ -34,7 +34,7 @@ if ($asternote_ok && defined('ASTERNOTE_PROJECT') && !(is_string(ASTERNOTE_PROJE
     $asternote_ok = false;
 }
 if ($asternote_ok) {
-    define('ASTERNOTE_VERSION', '0.11.2');
+    define('ASTERNOTE_VERSION', '0.11.3');
     define('ASTERNOTE_AJAX_ACTION', 'asternote');
 
     /** script タグと API で使う project 名。形は上で確かめてある */
