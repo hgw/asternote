@@ -48,6 +48,17 @@
   .areabox { position: relative; width: 220px; height: 120px; }
   .areabox .pn-area { left: 10px; top: 24px; right: 20px; bottom: 10px; }
   .areabox .pn-pin { left: 10px; top: 24px; }
+  /* サイトの CSS がボタンや label に付けがちな指定。Pico CSS 2 の指定をまねている
+     :where() で詳細度を上げずに範囲だけを絞る。サイト全体に効く CSS と同じ強さにするため */
+  :where(.site-css) button, :where(.site-css) [type=button] { margin-bottom: 18px; padding: 12px 24px; border: 2px solid #0172ad; border-radius: 0; font: 700 18px/2 Georgia, serif; text-transform: uppercase; letter-spacing: .1em; box-shadow: 0 4px 0 #014d75; width: 100%; height: 60px; min-width: 120px; }
+  :where(.site-css) [role=group] { display: inline-flex; width: 100%; margin-bottom: 18px; border-radius: 8px; box-shadow: 0 0 0 3px #0172ad; }
+  :where(.site-css) [role=group] > * { flex: 1 1 auto; }
+  :where(.site-css) [role=group] > :not(:last-child) { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+  :where(.site-css) [role=group] [type=button]:not(:first-child) { margin-left: -1px; }
+  :where(.site-css) label { display: block; width: fit-content; margin-bottom: 6px; color: #b91c1c; font: 18px/2 Georgia, serif; }
+  :where(.site-css) [type=checkbox] { appearance: none; width: 24px; height: 24px; margin: -2px 8px 0 0; border: 2px solid #0172ad; }
+  :where(.site-css) h2 { color: #b91c1c; font: 700 28px/1.15 Georgia, serif; }
+  :where(.site-css) input:not([type=checkbox]) { height: 56px; margin-bottom: 18px; box-shadow: 0 0 0 3px #0172ad; }
 </style>
 </head>
 <body>
@@ -66,6 +77,7 @@
   <li><a href="#popover">吹き出し</a></li>
   <li><a href="#list">一覧</a></li>
   <li><a href="#settings">設定</a></li>
+  <li><a href="#site-css">サイトの CSS</a></li>
 </ul></nav>
 <main class="static">
 
@@ -303,6 +315,68 @@
         <span class="cap">エラー・非表示・バーの位置を開いた</span>
       </div>
     </div>
+  </div>
+</section>
+
+<section id="site-css">
+  <h2>サイトの CSS に負けないか</h2>
+  <p class="lead">導入先のサイトが、ボタンや label に余白、幅、高さ、書体を付けていても、部品の位置と大きさは変わらない。この見本は、Pico CSS 2 のような指定を読ませている。上の見本と見比べる。サイトのボタンだけは、指定どおりに崩れる。</p>
+  <div class="stage stage--gray site-css" data-asternote>
+    <h3>バー</h3>
+    <div class="pn-bar" role="region" aria-label="メモ">
+      <div class="pn-island">
+        <span class="pn-grip" aria-hidden="true" data-icon="grip-vertical"></span>
+        <button type="button" class="pn-btn pn-btn--primary" data-icon="plus">メモを追加</button>
+        <button type="button" class="pn-btn" data-icon="list">一覧</button>
+        <button type="button" class="pn-btn pn-btn--icon" aria-label="設定" data-icon="settings"></button>
+      </div>
+      <button type="button" class="pn-close" aria-label="メモを閉じる" data-icon="x"></button>
+    </div>
+    <h3>置くモード</h3>
+    <div class="pn-bar" role="region" aria-label="メモ">
+      <div class="pn-island">
+        <span class="pn-grip" aria-hidden="true" data-icon="grip-vertical"></span>
+        <button type="button" class="pn-btn pn-btn--icon" aria-label="戻る" data-icon="arrow-left"></button>
+        <label class="pn-check pn-mode"><input type="checkbox" checked>範囲で指定</label>
+      </div>
+      <button type="button" class="pn-close" aria-label="メモを閉じる" data-icon="x"></button>
+    </div>
+    <h3>吹き出し・一覧・設定</h3>
+    <div class="row">
+      <div class="pn-pop" role="dialog" aria-label="新しいメモ">
+        <h2 class="pn-title">新しいメモ</h2>
+        <button type="button" class="pn-x" aria-label="閉じる" data-icon="x"></button>
+        <div class="pn-label">重要度</div>
+        <div class="pn-seg" role="group" aria-label="重要度">
+          <button type="button" aria-pressed="true">なし</button><button type="button" aria-pressed="false"><span class="pn-stars">★</span></button><button type="button" aria-pressed="false"><span class="pn-stars">★★</span></button><button type="button" aria-pressed="false"><span class="pn-stars">★★★</span></button>
+        </div>
+        <div class="pn-row">
+          <button type="button" class="pn-btn pn-btn--primary">保存</button>
+          <button type="button" class="pn-btn">キャンセル</button>
+          <button type="button" class="pn-btn pn-btn--danger pn-btn--icon" aria-label="削除" data-icon="trash-2"></button>
+        </div>
+      </div>
+      <div class="pn-list" role="region" aria-label="メモの一覧">
+        <ol>
+          <li><button type="button" class="pn-item"><span class="pn-head"><span class="pn-tag" data-status="open">1<span class="pn-sr">、未完了</span></span><span class="pn-kind" data-icon="wrench">修正</span></span><span class="pn-line">ロゴの位置が 2px ずれている</span></button></li>
+        </ol>
+      </div>
+      <div class="pn-settings" role="region" aria-label="設定">
+        <h2 class="pn-title">設定</h2>
+        <button type="button" class="pn-x" aria-label="設定を閉じる" data-icon="x"></button>
+        <label class="pn-check"><input type="checkbox" checked>キーボード操作</label>
+        <div class="pn-field"><span>メモを追加するキー</span><input type="text" class="pn-key" maxlength="1" value="c" aria-label="メモを追加するキー"></div>
+        <button type="button" class="pn-disclosure" aria-expanded="true"><span>バーの位置</span><span data-icon="chevron-down"></span></button>
+        <div class="pn-seg pn-pos" role="group" aria-label="バーの位置"><button type="button" aria-pressed="false">左上</button><button type="button" aria-pressed="false">上</button><button type="button" aria-pressed="false">右上</button><button type="button" aria-pressed="false">左</button><span></span><button type="button" aria-pressed="false">右</button><button type="button" aria-pressed="true">左下</button><button type="button" aria-pressed="false">下</button><button type="button" aria-pressed="false">右下</button></div>
+      </div>
+    </div>
+    <h3>ピン</h3>
+    <div class="row" style="align-items:center;gap:24px">
+      <div class="cell"><button type="button" class="pn-pin" data-status="open">1</button></div>
+      <div class="cell"><button type="button" class="pn-pin" data-status="done" data-icon-pin-after="check">2</button></div>
+    </div>
+    <h3>サイトのボタン</h3>
+    <button type="button">サイトのボタン</button>
   </div>
 </section>
 
