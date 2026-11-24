@@ -667,7 +667,8 @@
       '.pn-item:hover{background:var(--pn-subtle)}',
       '.pn-empty{margin:0;padding:10px;color:var(--pn-muted)}',
       // 起動ボタンは、バーと同じ高さと見た目にする。開いたり閉じたりしても、高さが変わらないように
-      '.pn-launch{position:fixed;left:12px;bottom:12px;z-index:2147483001;height:46px;padding:0 16px;border:1px solid var(--pn-border);border-radius:var(--pn-radius);background:var(--pn-bg);box-shadow:0 8px 16px rgba(0,0,0,.12)}',
+      // 起動ボタンは [data-asternote] の要素そのものなので、.pn-btn の font:inherit ではサイトの書体を受け継ぐ。書体はここで決める
+      '.pn-launch{position:fixed;left:12px;bottom:12px;z-index:2147483001;height:46px;padding:0 16px;font:500 13px/1 system-ui,sans-serif;border:1px solid var(--pn-border);border-radius:var(--pn-radius);background:var(--pn-bg);box-shadow:0 8px 16px rgba(0,0,0,.12)}',
       '.pn-launch:hover{background:var(--pn-subtle)}',
       // バーを動かすつまみ。キーボードでは設定の中から位置を選ぶので、フォーカスは当てない
       '.pn-grip{display:inline-flex;align-items:center;justify-content:center;width:20px;min-height:32px;margin-right:-2px;border-radius:calc(var(--pn-radius) - 2px);color:var(--pn-muted);cursor:grab;touch-action:none}',
