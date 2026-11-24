@@ -63,7 +63,7 @@
   'use strict';
 
   // 版の番号。package.json と同じ値にする。scripts/build-wordpress.sh が確かめる
-  var VERSION = '0.11.2';
+  var VERSION = '0.11.3';
 
   var script = document.currentScript;
   var config = {
@@ -468,14 +468,50 @@
     };
   }
 
-  // 範囲のメモの位置。左上と右下の両方を含む一番近い共通の親要素を基準にし、両端を相対位置で持つ
+  // 範囲と最もよく重なる要素を返す。重なりの度合いは、重なりの面積を2つの四角を合わせた面積で割って求める
+  // 候補は、範囲の中の 3×3 の点にある要素と、その親要素。親は limit までたどる。limit より上の要素は範囲を含んで limit より大きいので、度合いが下がる
+  // 角が余白の上にあると、共通の親は画面いっぱいの要素になる。その要素を基準にすると、画面の幅を変えたときに範囲がずれる
+  var AREA_SAMPLES = 3;
+  function bestOverlap(left, top, right, bottom, limit) {
+    var areaSize = (right - left) * (bottom - top);
+    var best = limit, bestScore = -1;
+    var seen = [];
+    var score = function (el) {
+      if (seen.indexOf(el) !== -1) return;
+      seen.push(el);
+      if (!el.getClientRects().length) return;
+      var r = el.getBoundingClientRect();
+      if (r.width < 1 || r.height < 1) return;
+      var w = Math.min(right, r.right) - Math.max(left, r.left);
+      var h = Math.min(bottom, r.bottom) - Math.max(top, r.top);
+      if (w <= 0 || h <= 0) return;
+      var inter = w * h;
+      var s = inter / (areaSize + r.width * r.height - inter);
+      // 同じ度合いなら、先に見た小さい要素を残す
+      if (s > bestScore) { best = el; bestScore = s; }
+    };
+    for (var i = 0; i < AREA_SAMPLES; i++) {
+      for (var j = 0; j < AREA_SAMPLES; j++) {
+        var cx = left + (right - left) * (i + 0.5) / AREA_SAMPLES;
+        var cy = top + (bottom - top) * (j + 0.5) / AREA_SAMPLES;
+        for (var el = hitElement(cx, cy); el; el = el.parentElement) {
+          score(el);
+          if (el === limit || el === document.body) break;
+        }
+      }
+    }
+    score(limit);
+    return best;
+  }
+
+  // 範囲のメモの位置。範囲と最もよく重なる要素を基準にし、両端を相対位置で持つ
   function areaAnchor(x1, y1, x2, y2) {
     var left = Math.min(x1, x2), right = Math.max(x1, x2);
     var top = Math.min(y1, y2), bottom = Math.max(y1, y2);
     var common = hitElement(left, top);
     var other = hitElement(right, bottom);
     while (common && common !== document.body && !common.contains(other)) common = common.parentElement;
-    var a = anchorFor(common || document.body);
+    var a = anchorFor(bestOverlap(left, top, right, bottom, common || document.body));
     var r = a.el.getBoundingClientRect();
     var docW = document.documentElement.scrollWidth;
     return {

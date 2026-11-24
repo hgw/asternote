@@ -1,6 +1,6 @@
 {
   "name": "asternote",
-  "version": "0.11.2",
+  "version": "0.11.3",
   "description": "プレビュー画面にピンと範囲でメモを残すツール",
   "private": true,
   "license": "MIT",
