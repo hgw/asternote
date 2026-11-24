@@ -63,7 +63,7 @@
   'use strict';
 
   // 版の番号。package.json と同じ値にする。scripts/build-wordpress.sh が確かめる
-  var VERSION = '0.11.1';
+  var VERSION = '0.11.2';
 
   var script = document.currentScript;
   var config = {
@@ -562,6 +562,9 @@
       '.pn-icon{display:inline-flex;flex:none;line-height:0}',
       '.pn-icon svg{width:16px;height:16px}',
       '.pn-layer{position:absolute;left:0;top:0;width:0;height:0;z-index:2147483000}',
+      // サイトの CSS がボタンに付けた指定を打ち消す。例えば Pico CSS は [type=button] に下の余白を付けるので、バーの中でボタンが上にずれる
+      // 大きさと余白は、このあとの部品ごとの指定で決める。そのため、この行は部品の指定より前に置く
+      '.pn-btn,.pn-close,.pn-x,.pn-item,.pn-disclosure,.pn-pin,.pn-grip{margin:0;width:auto;height:auto;min-width:0;font:inherit;line-height:inherit;letter-spacing:inherit;text-transform:none;border-radius:0;box-shadow:none}',
       // ピンは押せる大きさの基準に合わせて 24px 以上にする
       '.pn-pin{position:absolute;display:inline-flex;align-items:center;justify-content:center;gap:2px;min-width:24px;height:24px;margin:-24px 0 0 -2px;padding:0 6px;border:2px solid #fff;border-radius:12px 12px 12px 3px;color:#fff;font:600 12px/1 system-ui,sans-serif;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.4);touch-action:none;white-space:nowrap}',
       '.pn-pin .pn-icon svg{width:12px;height:12px;stroke-width:2.5}',
@@ -616,24 +619,29 @@
       '.pn-bar[data-edge="top"] .pn-hint{bottom:auto;top:calc(100% + 6px)}',
       '.pn-hint:empty{display:none}',
       '.pn-check{display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:0 6px;cursor:pointer;white-space:nowrap}',
-      '.pn-check input{width:16px;height:16px;margin:0;accent-color:var(--pn-primary)}',
+      // サイトの CSS が label と checkbox に付けた余白、幅、見た目を打ち消す。label:has(...) などの指定より強くするため、[data-asternote] を前に付ける
+      '[data-asternote] .pn-check{margin:0;width:auto;color:inherit;font:inherit}',
+      '[data-asternote] .pn-check input{flex:none;width:16px;height:16px;margin:0;padding:0;border:0;background:none;vertical-align:middle;appearance:auto;accent-color:var(--pn-primary)}',
       '.pn-notice{padding:4px 8px;border:1px solid #fcd34d;border-radius:calc(var(--pn-radius) - 2px);background:#fffbeb;color:#92400e}',
       '.pn-error{margin:8px 0 0;color:var(--pn-danger)}',
       '.pn-error:empty{display:none}',
       '.pn-pop{position:absolute;z-index:2147483002;width:300px;max-width:calc(100vw - 16px);overflow:auto;padding:14px}',
       '.pn-pop:focus{outline:none}',
-      '.pn-pop textarea,.pn-pop input[type="text"],.pn-pop select,.pn-settings input[type="text"]{display:block;width:100%;min-height:32px;margin:6px 0;padding:6px 8px;border:1px solid var(--pn-input);border-radius:calc(var(--pn-radius) - 2px);background:var(--pn-bg);color:var(--pn-fg);font:inherit}',
+      '.pn-pop textarea,.pn-pop input[type="text"],.pn-pop select,.pn-settings input[type="text"]{display:block;width:100%;min-height:32px;margin:6px 0;padding:6px 8px;border:1px solid var(--pn-input);border-radius:calc(var(--pn-radius) - 2px);background:var(--pn-bg);color:var(--pn-fg);height:auto;font:inherit;box-shadow:none}',
       '.pn-pop textarea{min-height:88px;resize:vertical}',
-      '.pn-title{margin:0 0 4px;padding-right:32px;font-weight:600;font-size:14px}',
+      '.pn-title{margin:0 0 4px;padding-right:32px;color:inherit;font-family:inherit;font-weight:600;font-size:14px;line-height:inherit}',
       '.pn-x{position:absolute;top:8px;right:8px;display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;padding:0;border:0;border-radius:999px;background:none;color:var(--pn-muted);cursor:pointer}',
       '.pn-x:hover{background:var(--pn-subtle);color:var(--pn-fg)}',
       '.pn-label{margin-top:10px;color:var(--pn-muted);font-size:12px;font-weight:500}',
       '.pn-sep{margin-top:12px;border-top:1px solid var(--pn-border)}',
-      '.pn-seg{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0}',
+      // サイトの CSS が role="group" に付けた幅、角丸、影を打ち消す。Pico CSS は、中のボタンを横に伸ばし、隣り合う角を四角にする
+      '.pn-seg{display:flex;flex-wrap:wrap;gap:4px;width:auto;margin:6px 0;border-radius:0;box-shadow:none}',
       // 選択中は塗りで示す。未選択との差は 3:1 以上
-      '.pn-seg button{display:inline-flex;align-items:center;gap:4px;min-height:28px;padding:0 8px;border:0;border-radius:calc(var(--pn-radius) - 2px);background:var(--pn-subtle);color:var(--pn-fg);font:inherit;font-size:12px;cursor:pointer}',
-      '.pn-seg button:hover{background:var(--pn-subtle-hover)}',
-      '.pn-seg button[aria-pressed="true"]{background:var(--pn-primary);color:var(--pn-primary-fg)}',
+      '[data-asternote] .pn-seg button{display:inline-flex;flex:none;align-items:center;gap:4px;width:auto;min-width:0;height:auto;min-height:28px;margin:0;padding:0 8px;border:0;border-radius:calc(var(--pn-radius) - 2px);background:var(--pn-subtle);color:var(--pn-fg);font:inherit;font-size:12px;line-height:inherit;letter-spacing:inherit;text-transform:none;box-shadow:none;cursor:pointer}',
+      // Pico CSS は [role=group] [type=button]:not(:first-child) で左の余白を -1px にする。それより強くするため :nth-child(n) を足す
+      '[data-asternote] .pn-seg button:nth-child(n){margin:0}',
+      '[data-asternote] .pn-seg button:hover{background:var(--pn-subtle-hover)}',
+      '[data-asternote] .pn-seg button[aria-pressed="true"]{background:var(--pn-primary);color:var(--pn-primary-fg)}',
       '.pn-seg .pn-icon svg{width:14px;height:14px}',
       '.pn-kind{display:inline-flex;align-items:center;gap:4px;margin-right:8px}',
       '.pn-stars{color:var(--pn-star);letter-spacing:1px}',
@@ -673,7 +681,7 @@
       '.pn-field-error{min-height:18px;margin:2px 0 0 22px;color:var(--pn-danger);font-size:12px;line-height:18px}',
       '.pn-sub{margin:0 0 0 22px;color:var(--pn-muted);font-size:12px}',
       '.pn-pos{display:grid;grid-template-columns:repeat(3,max-content);gap:4px}',
-      '.pn-pos button{justify-content:center;min-width:44px}',
+      '[data-asternote] .pn-pos button{justify-content:center;min-width:44px}',
       '.pn-foot{margin:12px 0 0;padding-top:8px;border-top:1px solid var(--pn-border);color:var(--pn-muted);font-size:12px}',
       '.pn-foot a{display:inline-flex;align-items:center;gap:4px;color:inherit;text-underline-offset:2px}',
       '.pn-foot a:hover{color:var(--pn-fg)}',
